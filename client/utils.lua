@@ -74,7 +74,7 @@ function ClientUtils.PlayAnimation(dict, anim, duration, flag, task)
             end
             return true
         else
-            print('[INTERIM] Failed to load animation dictionary: ' .. dict)
+            print('[KT_INTERIM] Failed to load animation dictionary: ' .. dict)
             return false
         end
     end
@@ -126,7 +126,7 @@ function ClientUtils.SpawnNPC(model, coords, heading, scenario, freeze)
     end
     
     if not HasModelLoaded(hash) then
-        print('[INTERIM] Failed to load NPC model: ' .. model)
+        print('[KT_INTERIM] Failed to load NPC model: ' .. model)
         return nil
     end
     
@@ -149,7 +149,7 @@ function ClientUtils.SpawnNPC(model, coords, heading, scenario, freeze)
         SetModelAsNoLongerNeeded(hash)
         return npc
     else
-        print('[INTERIM] Failed to create NPC entity')
+        print('[KT_INTERIM] Failed to create NPC entity')
         return nil
     end
 end
@@ -173,7 +173,7 @@ function ClientUtils.SpawnVehicle(model, coords, heading, callback)
     end
     
     if not HasModelLoaded(hash) then
-        print('[INTERIM] Failed to load vehicle model: ' .. model)
+        print('[KT_INTERIM] Failed to load vehicle model: ' .. model)
         if callback then callback(nil) end
         return nil
     end
@@ -199,7 +199,7 @@ function ClientUtils.SpawnVehicle(model, coords, heading, callback)
         
         return vehicle
     else
-        print('[INTERIM] Failed to create vehicle entity')
+        print('[KT_INTERIM] Failed to create vehicle entity')
         if callback then callback(nil) end
         return nil
     end

@@ -2,7 +2,7 @@ ServerUtils = {}
 
 function ServerUtils.Log(message, logType, playerSource)
     local timestamp = os.date('%Y-%m-%d %H:%M:%S')
-    local logMessage = string.format('[%s] [INTERIM] [%s] %s', timestamp, logType or 'INFO', message)
+    local logMessage = string.format('[%s] [KT_INTERIM] [%s] %s', timestamp, logType or 'INFO', message)
     
 
     print(logMessage)
@@ -357,7 +357,7 @@ function ServerUtils.ValidateCoords(coords)
 end
 
 function ServerUtils.Notify(source, message, type, duration)
-    TriggerClientEvent('interim:notify', source, message, type, duration)
+    TriggerClientEvent('kt_interim:notify', source, message, type, duration)
 end
 
 return ServerUtils

@@ -27,7 +27,7 @@ function InitializeJobs()
         end
     end
     
-    print('[INTERIM] Jobs initialized successfully')
+    print('[KT_INTERIM] Jobs initialized successfully')
 end
 
 -- Créer un blip pour un job
@@ -214,12 +214,12 @@ RegisterCommand('cancelinterim', function()
 end, false)
 
 -- Event pour notification depuis le serveur
-RegisterNetEvent('interim:notify', function(message, type, duration)
+RegisterNetEvent('kt_interim:notify', function(message, type, duration)
     ClientUtils.Notify(message, type, duration)
 end)
 
 -- Event pour forcer l'arrêt d'un job (depuis le serveur)
-RegisterNetEvent('interim:forceStopJob', function()
+RegisterNetEvent('kt_interim:forceStopJob', function()
     if isJobActive then
         CancelJob()
     end

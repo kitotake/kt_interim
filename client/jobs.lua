@@ -7,7 +7,7 @@ local collectedItems = 0
 local deliveryPoint = nil
 local pickupPoint = nil
 
-RegisterNetEvent('interim:startJob', function(jobName, jobConfig)
+RegisterNetEvent('kt_interim:startJob', function(jobName, jobConfig)
     if jobName == 'construction' then
         StartConstructionJob(jobConfig)
     elseif jobName == 'cleaning' then
@@ -23,7 +23,7 @@ RegisterNetEvent('interim:startJob', function(jobName, jobConfig)
     end
 end)
 
-RegisterNetEvent('interim:cancelJob', function()
+RegisterNetEvent('kt_interim:cancelJob', function()
     CleanupJobResources()
 end)
 

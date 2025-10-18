@@ -238,7 +238,7 @@ function StartMyNewJob(config)
     -- Votre logique ici
 end
 
--- Dans RegisterNetEvent('interim:startJob')
+-- Dans RegisterNetEvent('kt_interim:startJob')
 elseif jobName == 'my_new_job' then
     StartMyNewJob(jobConfig)
 ```

@@ -3,7 +3,7 @@ local activeJobs = {}
 
 -- Initialisation
 CreateThread(function()
-    print('^2[INTERIM]^7 Server initialized successfully')
+    print('^2[KT_INTERIM]^7 Server initialized successfully')
     
     -- Créer la table MySQL si nécessaire
     if GetResourceState('oxmysql') == 'started' then
@@ -19,13 +19,13 @@ CreateThread(function()
                 INDEX `idx_job_type` (`job_type`)
             )
         ]], {}, function()
-            print('^2[INTERIM]^7 Database table checked/created')
+            print('^2[KT_INTERIM]^7 Database table checked/created')
         end)
     end
 end)
 
 -- Event: Ajouter un item pendant la collecte
-RegisterNetEvent('interim:addItem', function(item, amount)
+RegisterNetEvent('kt_interim:addItem', function(item, amount)
     local source = source
     
     if not ServerUtils.PlayerExists(source) then
@@ -47,7 +47,7 @@ RegisterNetEvent('interim:addItem', function(item, amount)
 end)
 
 -- Event: Déposer les items et recevoir la récompense
-RegisterNetEvent('interim:depositItems', function(jobType, itemName, itemAmount, reward)
+RegisterNetEvent('kt_interim:depositItems', function(jobType, itemName, itemAmount, reward)
     local source = source
     
     if not ServerUtils.PlayerExists(source) then
@@ -67,7 +67,7 @@ RegisterNetEvent('interim:depositItems', function(jobType, itemName, itemAmount,
     if not ServerUtils.HasItem(source, itemName, itemAmount) then
         ServerUtils.Notify(source, 'Vous n\'avez pas les items requis !', 'error')
         ServerUtils.Log('Item check failed for job: ' .. jobType, 'WARN', source)
-        TriggerClientEvent('interim:forceStopJob', source)
+        TriggerClientEvent('kt_interim:forceStopJob', source)
         return
     end
     
@@ -106,7 +106,7 @@ RegisterNetEvent('interim:depositItems', function(jobType, itemName, itemAmount,
 end)
 
 -- Event: Compléter un job (pour les jobs sans items comme taxi)
-RegisterNetEvent('interim:completeJob', function(jobType, reward)
+RegisterNetEvent('kt_interim:completeJob', function(jobType, reward)
     local source = source
     
     if not ServerUtils.PlayerExists(source) then
@@ -150,7 +150,7 @@ RegisterNetEvent('interim:completeJob', function(jobType, reward)
 end)
 
 -- Event: Démarrer un job (tracking)
-RegisterNetEvent('interim:startJob', function(jobType)
+RegisterNetEvent('kt_interim:startJob', function(jobType)
     local source = source
     
     if not ServerUtils.PlayerExists(source) then
@@ -176,7 +176,7 @@ RegisterNetEvent('interim:startJob', function(jobType)
 end)
 
 -- Event: Joueur quitte pendant un job
-RegisterNetEvent('interim:playerQuit', function(jobType)
+RegisterNetEvent('kt_interim:playerQuit', function(jobType)
     local source = source
     
     if activeJobs[source] then
@@ -211,13 +211,13 @@ RegisterCommand('interimstats', function(source, args)
                 local identifier = ServerUtils.GetIdentifier(targetSource)
                 GetPlayerJobStats(identifier, function(stats)
                     if stats then
-                        print('^2[INTERIM STATS]^7 Player: ' .. GetPlayerName(targetSource))
+                        print('^2[KT_INTERIM STATS]^7 Player: ' .. GetPlayerName(targetSource))
                         for _, stat in ipairs(stats) do
                             print(string.format('  Job: %s | Completed: %d times | Total earned: $%d', 
                                 stat.job_type, stat.count, stat.total_earned or 0))
                         end
                     else
-                        print('^1[INTERIM]^7 No stats found for player')
+                        print('^1[KT_INTERIM]^7 No stats found for player')
                     end
                 end)
             end
@@ -278,12 +278,12 @@ RegisterCommand('interimreset', function(source, args)
             if ServerUtils.PlayerExists(targetSource) then
                 if activeJobs[targetSource] then
                     activeJobs[targetSource] = nil
-                    print('^2[INTERIM]^7 Reset job for player: ' .. GetPlayerName(targetSource))
+                    print('^2[KT_INTERIM]^7 Reset job for player: ' .. GetPlayerName(targetSource))
                 else
-                    print('^1[INTERIM]^7 Player has no active job')
+                    print('^1[KT_INTERIM]^7 Player has no active job')
                 end
             else
-                print('^1[INTERIM]^7 Player not found')
+                print('^1[KT_INTERIM]^7 Player not found')
             end
         end
     end

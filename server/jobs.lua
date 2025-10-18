@@ -158,7 +158,7 @@ function CalculateBonusReward(baseReward, jobCount)
 end
 
 -- Event pour appliquer les bonus
-RegisterNetEvent('interim:applyBonus', function(jobType, baseReward)
+RegisterNetEvent('kt_interim:applyBonus', function(jobType, baseReward)
     local source = source
     local identifier = ServerUtils.GetIdentifier(source)
     
@@ -202,7 +202,7 @@ function AddReputationXP(identifier, amount)
     return false, rep.level
 end
 
-RegisterNetEvent('interim:addReputation', function(jobType)
+RegisterNetEvent('kt_interim:addReputation', function(jobType)
     local source = source
     local identifier = ServerUtils.GetIdentifier(source)
     
@@ -283,7 +283,7 @@ function CheckPenalty(source)
 end
 
 -- Event pour signaler une activité suspecte
-RegisterNetEvent('interim:reportSuspicious', function(reason)
+RegisterNetEvent('kt_interim:reportSuspicious', function(reason)
     local source = source
     AddPenalty(source, reason)
     ServerUtils.Notify(source, 'Activité suspecte détectée. Attention aux pénalités !', 'error')
@@ -366,7 +366,7 @@ end
 
 function InitializeDailyQuests()
     dailyQuests = GenerateDailyQuests()
-    print('^2[INTERIM]^7 Daily quests initialized')
+    print('^2[KT_INTERIM]^7 Daily quests initialized')
 end
 
 function UpdateDailyQuest(identifier, jobType)
@@ -402,11 +402,11 @@ CreateThread(function()
     while true do
         Wait(86400000) -- 24 heures
         InitializeDailyQuests()
-        print('^2[INTERIM]^7 Daily quests reset')
+        print('^2[KT_INTERIM]^7 Daily quests reset')
     end
 end)
 
-RegisterNetEvent('interim:updateQuest', function(jobType)
+RegisterNetEvent('kt_interim:updateQuest', function(jobType)
     local source = source
     local identifier = ServerUtils.GetIdentifier(source)
     
@@ -492,7 +492,7 @@ function GetDynamicReward(jobType, baseReward)
     return math.floor(baseReward * multiplier)
 end
 
-RegisterNetEvent('interim:getDynamicReward', function(jobType, baseReward, callback)
+RegisterNetEvent('kt_interim:getDynamicReward', function(jobType, baseReward, callback)
     local source = source
     UpdateJobDemand(jobType)
     local dynamicReward = GetDynamicReward(jobType, baseReward)
@@ -503,7 +503,7 @@ RegisterNetEvent('interim:getDynamicReward', function(jobType, baseReward, callb
         ServerUtils.Notify(source, '📉 Forte affluence. Récompense réduite: ' .. math.floor(((baseReward - dynamicReward) / baseReward) * 100) .. '%', 'warning')
     end
     
-    TriggerClientEvent('interim:receiveDynamicReward', source, dynamicReward)
+    TriggerClientEvent('kt_interim:receiveDynamicReward', source, dynamicReward)
 end)
 
 -- ========== EXPORTS ==========
