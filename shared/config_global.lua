@@ -45,7 +45,7 @@ Config.Jobs = {
         item = {
             name = 'construction_brick',
             label = 'Brique de construction',
-            amount = 10,
+            amount = 5,
             required = true
         },
         rewards = {

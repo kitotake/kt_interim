@@ -6,6 +6,7 @@ local jobProp = nil
 local collectedItems = 0
 local deliveryPoint = nil
 local pickupPoint = nil
+local activeThread = nil
 
 RegisterNetEvent('kt_interim:startJob', function(jobName, jobConfig)
     if jobName == 'construction' then
@@ -27,9 +28,14 @@ RegisterNetEvent('kt_interim:cancelJob', function()
     CleanupJobResources()
 end)
 
+-- CORRECTION: Fonction IsJobActive() qui était appelée mais jamais définie
+local function IsJobActive()
+    return exports['kt_interim']:IsJobActive()
+end
+
 function StartConstructionJob(config)
     collectedItems = 0
-    
+   
     jobBlip = ClientUtils.CreateBlip(
         config.collectPoint.coords,
         1,
@@ -40,14 +46,8 @@ function StartConstructionJob(config)
     
     ClientUtils.Notify('Allez collecter des briques au point marqué', 'info')
     
-    CreateThread(function()
-        print('Starting Construction Job Thread')
-        print('Collect Point Coords: ' .. tostring(config.collectPoint.coords))
-        print('Item Amount: ' .. tostring(config.item.amount))
-       print('IsJobActive: ' .. tostring(IsJobActive()))
-          
-        while IsJobActive and collectedItems < config.item.amount do
-           
+    activeThread = CreateThread(function()
+        while IsJobActive() and collectedItems < config.item.amount do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.collectPoint.coords)
             
@@ -66,7 +66,7 @@ function StartConstructionJob(config)
             Wait(0)
         end
         
-        if collectedItems >= config.item.amount then
+        if IsJobActive() and collectedItems >= config.item.amount then
             StartConstructionDeposit(config)
         end
     end)
@@ -79,6 +79,7 @@ function CollectConstructionItem(config)
         anim = {dict = config.animation.collect.dict, clip = config.animation.collect.anim}
     })
     
+    ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
     
     if success then
@@ -102,8 +103,12 @@ function StartConstructionDeposit(config)
     
     ClientUtils.Notify('Allez déposer les briques au point marqué', 'info')
     
-    CreateThread(function()
-        while IsJobActive do
+    if activeThread then
+        activeThread = nil
+    end
+    
+    activeThread = CreateThread(function()
+        while IsJobActive() do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.depositPoint.coords)
             
@@ -114,7 +119,11 @@ function StartConstructionDeposit(config)
                     ClientUtils.DrawText3D(config.depositPoint.coords, '[E] Déposer les briques')
                     
                     if IsControlJustPressed(0, 38) then -- E
+                    print('-----------------------------------')
+                    print('le travail est fini ? ' .. tostring(collectedItems >= config.item.amount))
+                    print('-----------------------------------')
                         DepositConstructionItems(config)
+                        break -- AMÉLIORATION: Sortir de la boucle après le dépôt
                     end
                 end
             end
@@ -131,6 +140,7 @@ function DepositConstructionItems(config)
         anim = {dict = config.animation.deposit.dict, clip = config.animation.deposit.anim}
     })
     
+    ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
     
     if success then
@@ -162,8 +172,13 @@ function StartCleaningJob(config)
         
         ClientUtils.Notify('Allez collecter la poubelle #' .. currentPointIndex, 'info')
         
-        CreateThread(function()
-            while IsJobActive and collectedItems < config.item.amount do
+        -- CORRECTION: Nettoyer l'ancien thread
+        if activeThread then
+            activeThread = nil
+        end
+        
+        activeThread = CreateThread(function()
+            while IsJobActive() and collectedItems < config.item.amount do
                 local playerCoords = ClientUtils.GetPlayerCoords()
                 local distance = #(playerCoords - point.coords)
                 
@@ -197,6 +212,7 @@ function CollectCleaningItem(config, point)
         anim = {dict = config.animation.collect.dict, clip = config.animation.collect.anim}
     })
     
+    ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
     
     if success then
@@ -219,8 +235,12 @@ function StartCleaningDeposit(config)
     
     ClientUtils.Notify('Allez déposer les poubelles à la déchetterie', 'info')
     
-    CreateThread(function()
-        while IsJobActive do
+    if activeThread then
+        activeThread = nil
+    end
+    
+    activeThread = CreateThread(function()
+        while IsJobActive() do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.depositPoint.coords)
             
@@ -232,6 +252,7 @@ function StartCleaningDeposit(config)
                     
                     if IsControlJustPressed(0, 38) then -- E
                         DepositCleaningItems(config)
+                        break
                     end
                 end
             end
@@ -248,6 +269,7 @@ function DepositCleaningItems(config)
         anim = {dict = config.animation.deposit.dict, clip = config.animation.deposit.anim}
     })
     
+    ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
     
     if success then
@@ -257,6 +279,8 @@ function DepositCleaningItems(config)
 end
 
 function StartDeliveryJob(config)
+    collectedItems = 0
+    
     jobBlip = ClientUtils.CreateBlip(
         config.collectPoint.coords,
         1,
@@ -267,8 +291,8 @@ function StartDeliveryJob(config)
     
     ClientUtils.Notify('Allez collecter un colis au point marqué', 'info')
     
-    CreateThread(function()
-        while IsJobActive and collectedItems == 0 do
+    activeThread = CreateThread(function()
+        while IsJobActive() and collectedItems == 0 do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.collectPoint.coords)
             
@@ -287,7 +311,8 @@ function StartDeliveryJob(config)
             Wait(0)
         end
         
-        if collectedItems > 0 then
+        -- AMÉLIORATION: Vérifier si le job est toujours actif
+        if IsJobActive() and collectedItems > 0 then
             StartDeliveryRoute(config)
         end
     end)
@@ -300,6 +325,7 @@ function CollectDeliveryPackage(config)
         anim = {dict = config.animation.collect.dict, clip = config.animation.collect.anim}
     })
     
+    ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
     
     if success then
@@ -324,8 +350,12 @@ function StartDeliveryRoute(config)
     ClientUtils.SetWaypoint(deliveryPoint.coords, 'Point de livraison')
     ClientUtils.Notify('Livrez le colis au point marqué', 'info')
     
-    CreateThread(function()
-        while IsJobActive do
+    if activeThread then
+        activeThread = nil
+    end
+    
+    activeThread = CreateThread(function()
+        while IsJobActive() do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - deliveryPoint.coords)
             
@@ -337,6 +367,7 @@ function StartDeliveryRoute(config)
                     
                     if IsControlJustPressed(0, 38) then -- E
                         DeliverPackage(config)
+                        break
                     end
                 end
             end
@@ -353,6 +384,7 @@ function DeliverPackage(config)
         anim = {dict = config.animation.delivery.dict, clip = config.animation.delivery.anim}
     })
     
+    ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
     
     if success then
@@ -360,7 +392,6 @@ function DeliverPackage(config)
         CleanupJobResources()
     end
 end
-
 
 function StartShopLogisticsJob(config)
     collectedItems = 0
@@ -375,8 +406,8 @@ function StartShopLogisticsJob(config)
     
     ClientUtils.Notify('Allez collecter des cartons au point marqué', 'info')
     
-    CreateThread(function()
-        while IsJobActive and collectedItems < config.item.amount do
+    activeThread = CreateThread(function()
+        while IsJobActive() and collectedItems < config.item.amount do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.collectPoint.coords)
             
@@ -395,7 +426,7 @@ function StartShopLogisticsJob(config)
             Wait(0)
         end
         
-        if collectedItems >= config.item.amount then
+        if IsJobActive() and collectedItems >= config.item.amount then
             StartShopDeposit(config)
         end
     end)
@@ -408,6 +439,7 @@ function CollectShopBox(config)
         anim = {dict = config.animation.collect.dict, clip = config.animation.collect.anim}
     })
     
+    ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
     
     if success then
@@ -430,8 +462,12 @@ function StartShopDeposit(config)
     
     ClientUtils.Notify('Allez déposer les cartons au point marqué', 'info')
     
-    CreateThread(function()
-        while IsJobActive do
+    if activeThread then
+        activeThread = nil
+    end
+    
+    activeThread = CreateThread(function()
+        while IsJobActive() do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.depositPoint.coords)
             
@@ -443,6 +479,7 @@ function StartShopDeposit(config)
                     
                     if IsControlJustPressed(0, 38) then -- E
                         DepositShopBoxes(config)
+                        break
                     end
                 end
             end
@@ -459,6 +496,7 @@ function DepositShopBoxes(config)
         anim = {dict = config.animation.deposit.dict, clip = config.animation.deposit.anim}
     })
     
+    ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
     
     if success then
@@ -466,7 +504,6 @@ function DepositShopBoxes(config)
         CleanupJobResources()
     end
 end
-
 
 function StartTaxiJob(config)
     ClientUtils.SpawnVehicle(config.vehicleSpawn.model, config.vehicleSpawn.coords, config.vehicleSpawn.coords.w, function(vehicle)
@@ -496,8 +533,8 @@ function StartTaxiJob(config)
 end
 
 function StartTaxiPickup(config)
-    CreateThread(function()
-        while IsJobActive and not jobNPC do
+    activeThread = CreateThread(function()
+        while IsJobActive() and not jobNPC do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - pickupPoint.coords)
             
@@ -540,8 +577,12 @@ end
 function StartTaxiDelivery(config)
     local startCoords = ClientUtils.GetPlayerCoords()
     
-    CreateThread(function()
-        while IsJobActive do
+    if activeThread then
+        activeThread = nil
+    end
+    
+    activeThread = CreateThread(function()
+        while IsJobActive() do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - deliveryPoint.coords)
             
@@ -607,8 +648,8 @@ end
 function StartTruckerCollect(config)
     collectedItems = 0
     
-    CreateThread(function()
-        while IsJobActive and collectedItems < config.item.amount do
+    activeThread = CreateThread(function()
+        while IsJobActive() and collectedItems < config.item.amount do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.collectPoint.coords)
             
@@ -627,7 +668,7 @@ function StartTruckerCollect(config)
             Wait(0)
         end
         
-        if collectedItems >= config.item.amount then
+        if IsJobActive() and collectedItems >= config.item.amount then
             StartTruckerDelivery(config)
         end
     end)
@@ -640,6 +681,7 @@ function CollectTruckerCrate(config)
         anim = {dict = 'anim@heists@box_carry@', clip = 'idle'}
     })
     
+    ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
     
     if success then
@@ -664,8 +706,12 @@ function StartTruckerDelivery(config)
     ClientUtils.SetWaypoint(deliveryPoint.coords, deliveryPoint.label)
     ClientUtils.Notify('Livrez les marchandises à ' .. deliveryPoint.label, 'info')
     
-    CreateThread(function()
-        while IsJobActive do
+    if activeThread then
+        activeThread = nil
+    end
+    
+    activeThread = CreateThread(function()
+        while IsJobActive() do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - deliveryPoint.coords)
             
@@ -677,6 +723,7 @@ function StartTruckerDelivery(config)
                     
                     if IsControlJustPressed(0, 38) then -- E
                         DeliverTruckerCrates(config)
+                        break
                     end
                 end
             end
@@ -693,6 +740,7 @@ function DeliverTruckerCrates(config)
         anim = {dict = 'anim@heists@box_carry@', clip = 'idle'}
     })
     
+    ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
     
     if success then
@@ -702,6 +750,11 @@ function DeliverTruckerCrates(config)
 end
 
 function CleanupJobResources()
+    -- AMÉLIORATION: Arrêter le thread actif
+    if activeThread then
+        activeThread = nil
+    end
+    
     if jobBlip then
         ClientUtils.RemoveBlip(jobBlip)
         jobBlip = nil
@@ -731,4 +784,3 @@ function CleanupJobResources()
     deliveryPoint = nil
     pickupPoint = nil
 end
-

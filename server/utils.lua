@@ -1,27 +1,57 @@
 ServerUtils = {}
 
+-- CORRECTION: Initialiser ESX et QBCore au démarrage
+local ESX = nil
+local QBCore = nil
+
+CreateThread(function()
+    if GetResourceState('es_extended') == 'started' then
+        ESX = exports['es_extended']:getSharedObject()
+        print('^2[KT_INTERIM]^7 ESX detected and loaded')
+    end
+    
+    if GetResourceState('qb-core') == 'started' then
+        QBCore = exports['qb-core']:GetCoreObject()
+        print('^2[KT_INTERIM]^7 QBCore detected and loaded')
+    end
+    
+    if not ESX and not QBCore then
+        print('^3[KT_INTERIM]^7 No framework detected, using standalone mode with ox_inventory')
+    end
+end)
+
 function ServerUtils.Log(message, logType, playerSource)
     local timestamp = os.date('%Y-%m-%d %H:%M:%S')
     local logMessage = string.format('[%s] [KT_INTERIM] [%s] %s', timestamp, logType or 'INFO', message)
     
-
     print(logMessage)
     
     if playerSource then
         local playerName = GetPlayerName(playerSource)
         local identifier = ServerUtils.GetIdentifier(playerSource)
-        logMessage = logMessage .. string.format(' | Player: %s (%s)', playerName, identifier)
+        logMessage = logMessage .. string.format(' | Player: %s (%s)', playerName or 'Unknown', identifier or 'Unknown')
     end
-    
-    -- TriggerEvent('yourDiscordLog', {
-    --     title = 'Interim Log',
-    --     message = logMessage,
-    --     color = logType == 'ERROR' and 16711680 or logType == 'WARN' and 16776960 or 65280
-    -- })
 end
 
 function ServerUtils.GetIdentifier(source)
+    -- Essayer d'obtenir l'identifier depuis le framework d'abord
+    if ESX then
+        local xPlayer = ESX.GetPlayerFromId(source)
+        if xPlayer then
+            return xPlayer.identifier
+        end
+    end
+    
+    if QBCore then
+        local Player = QBCore.Functions.GetPlayer(source)
+        if Player then
+            return Player.PlayerData.citizenid
+        end
+    end
+    
+    -- Fallback: chercher manuellement
     local identifiers = GetPlayerIdentifiers(source)
+    if not identifiers then return nil end
     
     for _, identifier in ipairs(identifiers) do
         if string.find(identifier, 'license:') then
@@ -37,15 +67,30 @@ function ServerUtils.GetPlayerName(source)
 end
 
 function ServerUtils.HasItem(source, item, amount)
+    if not exports.ox_inventory then
+        ServerUtils.Log('ox_inventory not found', 'ERROR')
+        return false
+    end
+    
     local count = exports.ox_inventory:Search(source, 'count', item)
     return count >= (amount or 1)
 end
 
 function ServerUtils.GetItemCount(source, item)
+    if not exports.ox_inventory then
+        ServerUtils.Log('ox_inventory not found', 'ERROR')
+        return 0
+    end
+    
     return exports.ox_inventory:Search(source, 'count', item) or 0
 end
 
 function ServerUtils.AddItem(source, item, amount, metadata)
+    if not exports.ox_inventory then
+        ServerUtils.Log('ox_inventory not found', 'ERROR')
+        return false
+    end
+    
     local success = exports.ox_inventory:AddItem(source, item, amount or 1, metadata)
     
     if success then
@@ -58,6 +103,11 @@ function ServerUtils.AddItem(source, item, amount, metadata)
 end
 
 function ServerUtils.RemoveItem(source, item, amount, metadata)
+    if not exports.ox_inventory then
+        ServerUtils.Log('ox_inventory not found', 'ERROR')
+        return false
+    end
+    
     local success = exports.ox_inventory:RemoveItem(source, item, amount or 1, metadata)
     
     if success then
@@ -70,85 +120,111 @@ function ServerUtils.RemoveItem(source, item, amount, metadata)
 end
 
 function ServerUtils.CanCarryItem(source, item, amount)
+    if not exports.ox_inventory then
+        ServerUtils.Log('ox_inventory not found', 'ERROR')
+        return false
+    end
+    
     return exports.ox_inventory:CanCarryItem(source, item, amount or 1)
 end
 
 function ServerUtils.AddMoney(source, amount, moneyType)
     moneyType = moneyType or 'money'
     
-    if GetResourceState('es_extended') == 'started' then
+    -- Essayer avec ESX
+    if ESX then
         local xPlayer = ESX.GetPlayerFromId(source)
         if xPlayer then
             xPlayer.addMoney(amount)
-            ServerUtils.Log(string.format('Added $%d to player', amount), 'MONEY', source)
+            ServerUtils.Log(string.format('Added $%d to player (ESX)', amount), 'MONEY', source)
             return true
         end
     end
 
-    if GetResourceState('qb-core') == 'started' then
+    -- Essayer avec QBCore
+    if QBCore then
         local Player = QBCore.Functions.GetPlayer(source)
         if Player then
             Player.Functions.AddMoney('cash', amount)
-            ServerUtils.Log(string.format('Added $%d to player', amount), 'MONEY', source)
+            ServerUtils.Log(string.format('Added $%d to player (QBCore)', amount), 'MONEY', source)
             return true
         end
     end
     
-    local success = exports.ox_inventory:AddItem(source, 'money', amount)
-    if success then
-        ServerUtils.Log(string.format('Added $%d to player via ox_inventory', amount), 'MONEY', source)
+    -- Fallback: ox_inventory (standalone)
+    if exports.ox_inventory then
+        local success = exports.ox_inventory:AddItem(source, 'money', amount)
+        if success then
+            ServerUtils.Log(string.format('Added $%d to player (ox_inventory)', amount), 'MONEY', source)
+            return true
+        end
     end
     
-    return success or false
+    ServerUtils.Log('Failed to add money: No framework or ox_inventory available', 'ERROR', source)
+    return false
 end
 
 function ServerUtils.RemoveMoney(source, amount, moneyType)
     moneyType = moneyType or 'money'
     
-    if GetResourceState('es_extended') == 'started' then
+    -- Essayer avec ESX
+    if ESX then
         local xPlayer = ESX.GetPlayerFromId(source)
         if xPlayer then
             xPlayer.removeMoney(amount)
-            ServerUtils.Log(string.format('Removed $%d from player', amount), 'MONEY', source)
+            ServerUtils.Log(string.format('Removed $%d from player (ESX)', amount), 'MONEY', source)
             return true
         end
     end
     
-    if GetResourceState('qb-core') == 'started' then
+    -- Essayer avec QBCore
+    if QBCore then
         local Player = QBCore.Functions.GetPlayer(source)
         if Player then
             Player.Functions.RemoveMoney('cash', amount)
-            ServerUtils.Log(string.format('Removed $%d from player', amount), 'MONEY', source)
+            ServerUtils.Log(string.format('Removed $%d from player (QBCore)', amount), 'MONEY', source)
             return true
         end
     end
     
-    local success = exports.ox_inventory:RemoveItem(source, 'money', amount)
-    if success then
-        ServerUtils.Log(string.format('Removed $%d from player via ox_inventory', amount), 'MONEY', source)
+    -- Fallback: ox_inventory
+    if exports.ox_inventory then
+        local success = exports.ox_inventory:RemoveItem(source, 'money', amount)
+        if success then
+            ServerUtils.Log(string.format('Removed $%d from player (ox_inventory)', amount), 'MONEY', source)
+            return true
+        end
     end
     
-    return success or false
+    ServerUtils.Log('Failed to remove money: No framework or ox_inventory available', 'ERROR', source)
+    return false
 end
 
 function ServerUtils.GetMoney(source, moneyType)
     moneyType = moneyType or 'money'
     
-    if GetResourceState('es_extended') == 'started' then
+    -- Essayer avec ESX
+    if ESX then
         local xPlayer = ESX.GetPlayerFromId(source)
         if xPlayer then
             return xPlayer.getMoney()
         end
     end
     
-    if GetResourceState('qb-core') == 'started' then
+    -- Essayer avec QBCore
+    if QBCore then
         local Player = QBCore.Functions.GetPlayer(source)
         if Player then
             return Player.Functions.GetMoney('cash')
         end
     end
     
-    return ServerUtils.GetItemCount(source, 'money')
+    -- Fallback: ox_inventory
+    if exports.ox_inventory then
+        return ServerUtils.GetItemCount(source, 'money')
+    end
+    
+    return 0
 end
 
 function ServerUtils.PlayerExists(source)
@@ -250,7 +326,7 @@ function ServerUtils.GetPlayerStats(identifier, callback)
     end
     
     MySQL.Async.fetchAll([[
-        SELECT job_type, COUNT(*) as count, SUM(JSON_EXTRACT(data, '$.reward')) as total_earned
+        SELECT job_type, COUNT(*) as count, SUM(reward) as total_earned
         FROM kt_interim
         WHERE identifier = @identifier
         GROUP BY job_type
@@ -327,7 +403,6 @@ function ServerUtils.BanPlayer(identifier, reason, duration)
     }
     
     ServerUtils.Log(string.format('Player banned: %s, Reason: %s', identifier, reason), 'BAN')
-    
 end
 
 function ServerUtils.UnbanPlayer(identifier)
@@ -359,5 +434,10 @@ end
 function ServerUtils.Notify(source, message, type, duration)
     TriggerClientEvent('kt_interim:notify', source, message, type, duration)
 end
+
+-- Export pour accès externe
+exports('GetServerUtils', function()
+    return ServerUtils
+end)
 
 return ServerUtils

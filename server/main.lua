@@ -211,7 +211,7 @@ RegisterCommand('interimstats', function(source, args)
                 local identifier = ServerUtils.GetIdentifier(targetSource)
                 GetPlayerJobStats(identifier, function(stats)
                     if stats then
-                        print('^2[KT_INTERIM STATS]^7 Player: ' .. GetPlayerName(targetSource))
+                        print('^2[KTINTERIM STATS]^7 Player: ' .. GetPlayerName(targetSource))
                         for _, stat in ipairs(stats) do
                             print(string.format('  Job: %s | Completed: %d times | Total earned: $%d', 
                                 stat.job_type, stat.count, stat.total_earned or 0))
@@ -271,7 +271,7 @@ function GetPlayerJobStats(identifier, callback)
 end
 
 -- Commande pour reset le cooldown d'un joueur (admin)
-RegisterCommand('interimreset', function(source, args)
+RegisterCommand('interim_reset', function(source, args)
     if source == 0 then -- Console only
         if args[1] then
             local targetSource = tonumber(args[1])

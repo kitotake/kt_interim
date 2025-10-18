@@ -1,5 +1,8 @@
 -- Fonctions serveur spécifiques aux jobs
 
+print('^2[KT_INTERIM]^7 Jobs server script loaded')
+
+
 -- ========== CONSTRUCTION JOB ==========
 function ValidateConstructionJob(source, itemAmount)
     local config = Config.Jobs['construction']
