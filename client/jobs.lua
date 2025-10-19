@@ -275,8 +275,7 @@ function StartConstructionDeposit(config)
 
                 if distance < 5.0 then
                     if config.vehicleSpawn and IsInJobVehicle() then
-                        ClientUtils.DrawText3D(config.collectPoint.coords,
-                            '⚠️ Vous devez quitter votre véhicule pour déposer !')
+                        ClientUtils.DrawText3D(config.collectPoint.coords, '⚠️ Vous devez quitter votre véhicule pour déposer !')
                     else
                         ClientUtils.DrawText3D(config.depositPoint.coords, '[E] Déposer les briques')
 
