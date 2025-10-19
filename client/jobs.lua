@@ -83,7 +83,8 @@ function StartVehicleReturn(spawnCoords, jobName)
             local distance = #(playerCoords - spawnCoords)
 
             if distance < 30.0 then
-                ClientUtils.DrawMarker(spawnCoords, 1, { r = 0, g = 255, b = 255, a = 100 }, { x = 5.0, y = 5.0, z = 1.0 })
+                ClientUtils.DrawMarker(spawnCoords, 1, { r = 0, g = 255, b = 255, a = 100 },
+                    { x = 5.0, y = 5.0, z = 1.0 })
 
                 if distance < 5.0 and IsInJobVehicle() then
                     ClientUtils.DrawText3D(spawnCoords, '[E] Rendre le véhicule')
@@ -275,7 +276,8 @@ function StartConstructionDeposit(config)
 
                 if distance < 5.0 then
                     if config.vehicleSpawn and IsInJobVehicle() then
-                        ClientUtils.DrawText3D(config.collectPoint.coords, '⚠️ Vous devez quitter votre véhicule pour déposer !')
+                        ClientUtils.DrawText3D(config.collectPoint.coords,
+                            '⚠️ Vous devez quitter votre véhicule pour déposer !')
                     else
                         ClientUtils.DrawText3D(config.depositPoint.coords, '[E] Déposer les briques')
 
@@ -407,8 +409,8 @@ function StartCleaningCollectSequence(config)
                     ClientUtils.DrawMarker(point.coords, 1, { r = 255, g = 165, b = 0 })
 
                     if distance < 5.0 then
-                        if config.vehicleSpawn and not IsInJobVehicle() then
-                            ClientUtils.DrawText3D(point.coords, '⚠️ Vous devez être dans le véhicule de job !')
+                        if config.vehicleSpawn and IsInJobVehicle() then
+                            ClientUtils.DrawText3D(point.coords, '⚠️ Vous devez quitter votre véhicule pour collecter !')
                         else
                             ClientUtils.DrawText3D(point.coords, '[E] Collecter la poubelle')
 
@@ -475,7 +477,7 @@ function StartCleaningDeposit(config)
 
                 if distance < 5.0 then
                     if config.vehicleSpawn and not IsInJobVehicle() then
-                        ClientUtils.DrawText3D(config.depositPoint.coords, '⚠️ Vous devez être dans le véhicule de job !')
+                        ClientUtils.DrawText3D(config.depositPoint.coords, '⚠️ Vous devez quitter votre véhicule pour déposer !')
                     else
                         ClientUtils.DrawText3D(config.depositPoint.coords, '[E] Jeter les poubelles')
 
@@ -506,14 +508,13 @@ function DepositCleaningItems(config)
 
     if success then
         TriggerServerEvent('kt_interim:depositItems', 'cleaning', config.item.name, collectedItems, config.rewards
-        .amount)
+            .amount)
 
         collectedItems = 0
 
         local alert = lib.alertDialog({
             header = 'Continuer le travail ?',
-            content =
-            'Voulez-vous collecter plus de poubelles ?\n\n✅ Oui - Recommencer la collecte\n❌ Non - Terminer et rendre le véhicule',
+            content = 'Voulez-vous collecter plus de poubelles ?\n\n✅ Oui - Recommencer la collecte\n❌ Non - Terminer et rendre le véhicule',
             centered = true,
             cancel = true,
             labels = {
@@ -589,8 +590,8 @@ function StartDeliveryCollect(config)
                     config.collectPoint.markerColor)
 
                 if distance < 5.0 then
-                    if config.vehicleSpawn and not IsInJobVehicle() then
-                        ClientUtils.DrawText3D(config.collectPoint.coords, '⚠️ Vous devez être dans le véhicule de job !')
+                    if config.vehicleSpawn and IsInJobVehicle() then
+                        ClientUtils.DrawText3D(config.collectPoint.coords,'⚠️ Vous devez quitter votre véhicule pour collecter !')
                     else
                         ClientUtils.DrawText3D(config.collectPoint.coords, '[E] Prendre un colis')
 
@@ -655,8 +656,8 @@ function StartDeliveryRoute(config)
                 ClientUtils.DrawMarker(deliveryPoint.coords, 1, { r = 0, g = 255, b = 0 })
 
                 if distance < 5.0 then
-                    if config.vehicleSpawn and not IsInJobVehicle() then
-                        ClientUtils.DrawText3D(deliveryPoint.coords, '⚠️ Vous devez être dans le véhicule de job !')
+                    if config.vehicleSpawn and IsInJobVehicle() then
+                        ClientUtils.DrawText3D(deliveryPoint.coords,'⚠️ Vous devez quitter votre véhicule pour collecter !')
                     else
                         ClientUtils.DrawText3D(deliveryPoint.coords, '[E] Livrer le colis')
 
@@ -778,8 +779,9 @@ function StartShopCollect(config)
                     config.collectPoint.markerColor)
 
                 if distance < 5.0 then
-                    if config.vehicleSpawn and not IsInJobVehicle() then
-                        ClientUtils.DrawText3D(config.collectPoint.coords, '⚠️ Vous devez être dans le véhicule de job !')
+
+                    if config.vehicleSpawn and IsInJobVehicle() then
+                        ClientUtils.DrawText3D(config.collectPoint.coords,'⚠️ Vous devez quitter votre véhicule pour collecter !')
                     else
                         ClientUtils.DrawText3D(config.collectPoint.coords, '[E] Prendre un carton')
 
@@ -843,8 +845,8 @@ function StartShopDeposit(config)
                     config.depositPoint.markerColor)
 
                 if distance < 5.0 then
-                    if config.vehicleSpawn and not IsInJobVehicle() then
-                        ClientUtils.DrawText3D(config.depositPoint.coords, '⚠️ Vous devez être dans le véhicule de job !')
+                    if config.vehicleSpawn and IsInJobVehicle() then
+                        ClientUtils.DrawText3D(config.collectPoint.coords,'⚠️ Vous devez quitter votre véhicule pour collecter !')
                     else
                         ClientUtils.DrawText3D(config.depositPoint.coords, '[E] Déposer les cartons')
 
@@ -1117,8 +1119,8 @@ function StartTruckerCollect(config)
                     config.collectPoint.markerColor)
 
                 if distance < 5.0 then
-                    if not IsInJobVehicle() then
-                        ClientUtils.DrawText3D(config.collectPoint.coords, '⚠️ Vous devez être dans le camion de job !')
+                    if config.vehicleSpawn and IsInJobVehicle() then
+                        ClientUtils.DrawText3D(config.collectPoint.coords,'⚠️ Vous devez quitter votre véhicule pour collecter !')
                     else
                         ClientUtils.DrawText3D(config.collectPoint.coords, '[E] Charger les caisses')
 
@@ -1183,7 +1185,7 @@ function StartTruckerDelivery(config)
                 ClientUtils.DrawMarker(deliveryPoint.coords, 1, { r = 0, g = 255, b = 0 }, { x = 3.0, y = 3.0, z = 1.0 })
 
                 if distance < 10.0 then
-                    if not IsInJobVehicle() then
+                    if config.vehicleSpawn and IsInJobVehicle() then
                         ClientUtils.DrawText3D(deliveryPoint.coords, '⚠️ Vous devez être dans le camion de job !')
                     else
                         ClientUtils.DrawText3D(deliveryPoint.coords, '[E] Décharger les caisses')

@@ -222,6 +222,12 @@ RegisterNetEvent('kt_interim:forceStopJob', function()
         currentJobData = nil
         isJobActive = false
         
+        print('[KT_INTERIM] Job forcibly stopped by server')
+        print(isJobActive)
+        print(activeJob)
+        print(currentJobData)
+
+        print('[KT_INTERIM] Triggering client cleanup for forced job stop')
         ClientUtils.Notify('Job forcé à s\'arrêter', 'error')
         
         -- Appeler le cleanup côté client
