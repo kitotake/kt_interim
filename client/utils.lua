@@ -1,6 +1,5 @@
 ClientUtils = {}
 
--- Calcul de distance
 function ClientUtils.GetDistance(coords1, coords2)
     if type(coords1) == "vector3" and type(coords2) == "vector3" then
         return #(coords1 - coords2)
@@ -8,7 +7,6 @@ function ClientUtils.GetDistance(coords1, coords2)
     return #(vector3(coords1.x, coords1.y, coords1.z) - vector3(coords2.x, coords2.y, coords2.z))
 end
 
--- Notification
 function ClientUtils.Notify(message, type, duration)
     if Config.Notification == 'ox_lib' then
         lib.notify({
@@ -25,7 +23,6 @@ function ClientUtils.Notify(message, type, duration)
     end
 end
 
--- Progress bar
 function ClientUtils.ProgressBar(label, duration, options)
     if Config.ProgressBar == 'ox_lib' then
         local success = lib.progressBar({
@@ -54,7 +51,6 @@ function ClientUtils.ProgressBar(label, duration, options)
     return true
 end
 
--- Animation avec gestion automatique du dictionnaire
 function ClientUtils.PlayAnimation(dict, anim, duration, flag, task)
     local ped = PlayerPedId()
     
@@ -81,14 +77,12 @@ function ClientUtils.PlayAnimation(dict, anim, duration, flag, task)
     return false
 end
 
--- Stop toutes les animations
 function ClientUtils.StopAnimation()
     local ped = PlayerPedId()
     ClearPedTasks(ped)
     ClearPedSecondaryTask(ped)
 end
 
--- Affichage de texte 3D
 function ClientUtils.DrawText3D(coords, text, size)
     local onScreen, x, y = World3dToScreen2d(coords.x, coords.y, coords.z)
     local camCoords = GetGameplayCamCoords()
@@ -114,7 +108,6 @@ function ClientUtils.DrawText3D(coords, text, size)
     end
 end
 
--- Spawn PNJ avec gestion du modèle
 function ClientUtils.SpawnNPC(model, coords, heading, scenario, freeze)
     local hash = GetHashKey(model)
     
@@ -154,14 +147,25 @@ function ClientUtils.SpawnNPC(model, coords, heading, scenario, freeze)
     end
 end
 
--- Suppression PNJ
 function ClientUtils.DeleteNPC(npc)
     if DoesEntityExist(npc) then
         DeleteEntity(npc)
     end
 end
 
--- Spawn véhicule avec callback
+function ClientUtils.GenerateTempPlate()
+    local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    math.randomseed(GetGameTimer())
+
+    local plate = ""
+    for i = 1, 8 do
+        local rand = math.random(1, #charset)
+        plate = plate .. charset:sub(rand, rand)
+    end
+
+    return plate
+end
+
 function ClientUtils.SpawnVehicle(model, coords, heading, callback)
     local hash = GetHashKey(model)
     
@@ -181,7 +185,7 @@ function ClientUtils.SpawnVehicle(model, coords, heading, callback)
     local vehicle = CreateVehicle(hash, coords.x, coords.y, coords.z, heading, true, false)
     
     if DoesEntityExist(vehicle) then
-        SetVehicleNumberPlateText(vehicle, "INTERIM")
+        SetVehicleNumberPlateText(vehicle, ClientUtils.GenerateTempPlate())
         SetEntityAsMissionEntity(vehicle, true, true)
         SetVehicleHasBeenOwnedByPlayer(vehicle, true)
         SetVehicleNeedsToBeHotwired(vehicle, false)
@@ -205,7 +209,6 @@ function ClientUtils.SpawnVehicle(model, coords, heading, callback)
     end
 end
 
--- Suppression véhicule proprement
 function ClientUtils.DeleteVehicle(vehicle)
     if DoesEntityExist(vehicle) then
         SetEntityAsMissionEntity(vehicle, true, true)
@@ -213,7 +216,6 @@ function ClientUtils.DeleteVehicle(vehicle)
     end
 end
 
--- Spawn trailer pour les camions
 function ClientUtils.SpawnTrailer(model, coords, heading)
     local hash = GetHashKey(model)
     
@@ -233,7 +235,6 @@ function ClientUtils.SpawnTrailer(model, coords, heading)
     return nil
 end
 
--- Attacher trailer au camion
 function ClientUtils.AttachTrailer(truck, trailer)
     if DoesEntityExist(truck) and DoesEntityExist(trailer) then
         AttachVehicleToTrailer(truck, trailer, 1.0)
@@ -242,18 +243,15 @@ function ClientUtils.AttachTrailer(truck, trailer)
     return false
 end
 
--- Vérification si le joueur a un item
 function ClientUtils.HasItem(item, amount)
     local count = exports.ox_inventory:Search('count', item)
     return count >= (amount or 1)
 end
 
--- Obtenir le nombre d'items
 function ClientUtils.GetItemCount(item)
     return exports.ox_inventory:Search('count', item) or 0
 end
 
--- Marker avec couleur personnalisable
 function ClientUtils.DrawMarker(coords, markerType, color, scale)
     markerType = markerType or 1
     color = color or {r = 255, g = 255, b = 255, a = 100}
@@ -270,7 +268,6 @@ function ClientUtils.DrawMarker(coords, markerType, color, scale)
     )
 end
 
--- Blip creation avec plus d'options
 function ClientUtils.CreateBlip(coords, sprite, color, scale, label, shortRange)
     local blip = AddBlipForCoord(coords.x, coords.y, coords.z)
     SetBlipSprite(blip, sprite or 1)
@@ -286,14 +283,12 @@ function ClientUtils.CreateBlip(coords, sprite, color, scale, label, shortRange)
     return blip
 end
 
--- Suppression blip
 function ClientUtils.RemoveBlip(blip)
     if DoesBlipExist(blip) then
         RemoveBlip(blip)
     end
 end
 
--- Créer un blip de route vers des coordonnées
 function ClientUtils.SetWaypoint(coords, label)
     SetNewWaypoint(coords.x, coords.y)
     if label then
@@ -301,12 +296,10 @@ function ClientUtils.SetWaypoint(coords, label)
     end
 end
 
--- Vérifier si le joueur est dans un véhicule
 function ClientUtils.IsInVehicle()
     return IsPedInAnyVehicle(PlayerPedId(), false)
 end
 
--- Obtenir le véhicule du joueur
 function ClientUtils.GetVehicle()
     local ped = PlayerPedId()
     if IsPedInAnyVehicle(ped, false) then
@@ -315,12 +308,10 @@ function ClientUtils.GetVehicle()
     return nil
 end
 
--- Obtenir les coordonnées du joueur
 function ClientUtils.GetPlayerCoords()
     return GetEntityCoords(PlayerPedId())
 end
 
--- Téléporter le joueur
 function ClientUtils.TeleportPlayer(coords, heading)
     local ped = PlayerPedId()
     SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, true)
@@ -329,7 +320,6 @@ function ClientUtils.TeleportPlayer(coords, heading)
     end
 end
 
--- Forcer le joueur à sortir du véhicule
 function ClientUtils.ExitVehicle()
     local ped = PlayerPedId()
     if IsPedInAnyVehicle(ped, false) then
@@ -337,18 +327,15 @@ function ClientUtils.ExitVehicle()
     end
 end
 
--- Format argent
 function ClientUtils.FormatMoney(amount)
     return string.format("$%s", lib.math.groupdigits(amount))
 end
 
--- Choix aléatoire dans une table
 function ClientUtils.RandomChoice(tbl)
     if not tbl or #tbl == 0 then return nil end
     return tbl[math.random(1, #tbl)]
 end
 
--- Attendre qu'une condition soit vraie avec timeout
 function ClientUtils.WaitFor(condition, timeout)
     local timer = 0
     timeout = timeout or 5000
@@ -361,7 +348,6 @@ function ClientUtils.WaitFor(condition, timeout)
     return condition()
 end
 
--- Charger un prop et l'attacher au joueur
 function ClientUtils.AttachProp(prop, bone, offset, rotation)
     local ped = PlayerPedId()
     local boneIndex = GetPedBoneIndex(ped, bone or 28422)
@@ -382,39 +368,33 @@ function ClientUtils.AttachProp(prop, bone, offset, rotation)
     return object
 end
 
--- Supprimer un prop
 function ClientUtils.DeleteProp(prop)
     if DoesEntityExist(prop) then
         DeleteObject(prop)
     end
 end
 
--- Désactiver les contrôles
 function ClientUtils.DisableControls(disableMovement, disableCarMovement, disableMouse)
-    DisableControlAction(0, 1, disableMouse) -- LookLeftRight
-    DisableControlAction(0, 2, disableMouse) -- LookUpDown
-    DisableControlAction(0, 24, true) -- Attack
-    DisableControlAction(0, 25, true) -- Aim
-    DisableControlAction(0, 47, true) -- Weapon
-    DisableControlAction(0, 58, true) -- Weapon
-    DisableControlAction(0, 263, true) -- Melee Attack 1
-    DisableControlAction(0, 264, true) -- Melee Attack 2
-    DisableControlAction(0, 257, true) -- Attack 2
-    DisableControlAction(0, 140, true) -- Melee Attack Light
-    DisableControlAction(0, 141, true) -- Melee Attack Heavy
-    DisableControlAction(0, 142, true) -- Melee Attack Alternate
-    DisableControlAction(0, 143, true) -- Melee Block
-    DisableControlAction(0, 37, disableCarMovement) -- Select Weapon
-    DisableControlAction(0, 99, disableCarMovement) -- VehicleSelectNextWeapon
-    DisableControlAction(0, 100, disableCarMovement) -- VehicleSelectPrevWeapon
-    DisableControlAction(0, 115, disableCarMovement) -- VehicleFlyThrottleUp
-    DisableControlAction(0, 116, disableCarMovement) -- VehicleFlyThrottleDown
-    DisableControlAction(0, 117, disableCarMovement) -- VehicleFlyYawLeft
-    DisableControlAction(0, 118, disableCarMovement) -- VehicleFlyYawRight
-    DisableControlAction(0, 30, disableMovement) -- MoveLeftRight
-    DisableControlAction(0, 31, disableMovement) -- MoveUpDown
-    DisableControlAction(0, 36, disableMovement) -- Duck
-    DisableControlAction(0, 21, disableMovement) -- Sprint
+    local mouseControls = {1, 2}
+    for i = 1, #mouseControls do
+        DisableControlAction(0, mouseControls[i], disableMouse)
+    end
+
+    local combatControls = {24, 25, 47, 58, 263, 264, 257, 140, 141, 142, 143}
+    for i = 1, #combatControls do
+        DisableControlAction(0, combatControls[i], true)
+    end
+
+    local carControls = {37, 99, 100, 115, 116, 117, 118}
+    for i = 1, #carControls do
+        DisableControlAction(0, carControls[i], disableCarMovement)
+    end
+
+    local movementControls = {30, 31, 36, 21}
+    for i = 1, #movementControls do
+        DisableControlAction(0, movementControls[i], disableMovement)
+    end
 end
+
 
 return ClientUtils

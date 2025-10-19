@@ -153,11 +153,19 @@ end
 
 -- Démarrer un job
 function StartJob(jobName, jobConfig)
+    if isJobActive then
+        ClientUtils.Notify('Vous avez déjà un job en cours !', 'error')
+        return
+    end
+    
     activeJob = jobName
     currentJobData = jobConfig
     isJobActive = true
     
     ClientUtils.Notify('Mission commencée: ' .. jobConfig.label, 'success')
+    
+    -- Notifier le serveur
+    TriggerServerEvent('kt_interim:startJob', jobName)
     
     -- Déclencher la logique spécifique du job
     TriggerEvent('kt_interim:startJob', jobName, jobConfig)
@@ -169,9 +177,6 @@ function CompleteJob(reward)
     
     local jobName = activeJob
     local jobConfig = currentJobData
-    
-    -- Notifier le serveur
-    TriggerServerEvent('kt_interim:completeJob', jobName, reward)
     
     -- Réinitialiser les variables
     activeJob = nil
@@ -185,13 +190,19 @@ end
 function CancelJob()
     if not isJobActive then return end
     
+    local jobName = activeJob
+    
     activeJob = nil
     currentJobData = nil
     isJobActive = false
     
     ClientUtils.Notify('Mission annulée', 'error')
     
+    -- Nettoyer les ressources côté client
     TriggerEvent('kt_interim:cancelJob')
+    
+    -- Notifier le serveur
+    TriggerServerEvent('kt_interim:playerCancelJob', jobName)
 end
 
 -- Obtenir le job actif
@@ -203,6 +214,20 @@ end
 function IsJobActive()
     return isJobActive
 end
+
+-- Event pour forcer l'arrêt d'un job (depuis le serveur)
+RegisterNetEvent('kt_interim:forceStopJob', function()
+    if isJobActive then
+        activeJob = nil
+        currentJobData = nil
+        isJobActive = false
+        
+        ClientUtils.Notify('Job forcé à s\'arrêter', 'error')
+        
+        -- Appeler le cleanup côté client
+        TriggerEvent('kt_interim:cancelJob')
+    end
+end)
 
 -- Commande pour annuler un job
 RegisterCommand('cancelinterim', function()
@@ -216,13 +241,6 @@ end, false)
 -- Event pour notification depuis le serveur
 RegisterNetEvent('kt_interim:notify', function(message, type, duration)
     ClientUtils.Notify(message, type, duration)
-end)
-
--- Event pour forcer l'arrêt d'un job (depuis le serveur)
-RegisterNetEvent('kt_interim:forceStopJob', function()
-    if isJobActive then
-        CancelJob()
-    end
 end)
 
 -- Cleanup quand le joueur quitte
@@ -249,3 +267,4 @@ end)
 exports('GetActiveJob', GetActiveJob)
 exports('IsJobActive', IsJobActive)
 exports('CancelJob', CancelJob)
+

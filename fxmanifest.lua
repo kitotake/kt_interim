@@ -4,7 +4,7 @@ game 'gta5'
 name "kt_interim job"
 author "kitotake"
 description 'Système d\'intérim complet avec ox_lib et ox_inventory'
-version '1.1.0'
+version '1.5.0'
 
 lua54 'yes'
 
@@ -39,17 +39,20 @@ optional_dependencies {
     'oxmysql'
 }
 
+-- Exports client
 client_export 'IsJobActive'
 client_export 'GetActiveJob'
 client_export 'CancelJob'
 
+-- Exports server
 server_export 'GetServerUtils'
-
-server_export'ValidateConstructionJob'
-server_export'ValidateCleaningJob'
-server_export'ValidateDeliveryJob'
-server_export'ValidateShopLogisticsJob'
-server_export'ValidateTaxiJob'
-server_export'ValidateTruckerJob'
-server_export'GetPlayerReputation'
-server_export'GetDynamicReward'
+server_export 'ValidateConstructionJob'
+server_export 'ValidateCleaningJob'
+server_export 'ValidateDeliveryJob'
+server_export 'ValidateShopLogisticsJob'
+server_export 'ValidateTaxiJob'
+server_export 'ValidateTruckerJob'
+server_export 'GetPlayerReputation'
+server_export 'GetDynamicReward'
+server_export 'IsPlayerOnJob'
+server_export 'GetPlayerActiveJob'

@@ -1,6 +1,6 @@
 ServerUtils = {}
 
--- CORRECTION: Initialiser ESX et QBCore au démarrage
+-- Initialiser ESX et QBCore au démarrage
 local ESX = nil
 local QBCore = nil
 
@@ -441,3 +441,4 @@ exports('GetServerUtils', function()
 end)
 
 return ServerUtils
+

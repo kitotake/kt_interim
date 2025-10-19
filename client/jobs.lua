@@ -6,7 +6,7 @@ local jobProp = nil
 local collectedItems = 0
 local deliveryPoint = nil
 local pickupPoint = nil
-local activeThread = nil
+local activeThreads = {}
 
 RegisterNetEvent('kt_interim:startJob', function(jobName, jobConfig)
     if jobName == 'construction' then
@@ -28,25 +28,61 @@ RegisterNetEvent('kt_interim:cancelJob', function()
     CleanupJobResources()
 end)
 
--- CORRECTION: Fonction IsJobActive() qui était appelée mais jamais définie
 local function IsJobActive()
     return exports['kt_interim']:IsJobActive()
 end
 
+local function StopActiveThreads()
+    for _, thread in pairs(activeThreads) do
+        if thread then
+            -- Les threads se termineront naturellement avec IsJobActive() = false
+        end
+    end
+    activeThreads = {}
+end
+
 function StartConstructionJob(config)
     collectedItems = 0
-   
-    jobBlip = ClientUtils.CreateBlip(
-        config.collectPoint.coords,
-        1,
-        47,
-        0.8,
-        'Point de collecte - Briques'
-    )
     
-    ClientUtils.Notify('Allez collecter des briques au point marqué', 'info')
-    
-    activeThread = CreateThread(function()
+    -- Spawn du véhicule si configuré
+    if config.vehicleSpawn then
+        ClientUtils.SpawnVehicle(config.vehicleSpawn.model, config.vehicleSpawn.coords, config.vehicleSpawn.coords.w, function(vehicle)
+            if vehicle then
+                jobVehicle = vehicle
+                TaskWarpPedIntoVehicle(PlayerPedId(), vehicle, -1)
+                
+                jobBlip = ClientUtils.CreateBlip(
+                    config.collectPoint.coords,
+                    1,
+                    47,
+                    0.8,
+                    'Point de collecte - Briques'
+                )
+                
+                ClientUtils.Notify('Allez collecter des briques au point marqué avec le véhicule', 'info')
+                StartConstructionCollect(config)
+            else
+                ClientUtils.Notify('Erreur lors du spawn du véhicule', 'error')
+                CleanupJobResources()
+            end
+        end)
+    else
+        -- Mode sans véhicule (ancien comportement)
+        jobBlip = ClientUtils.CreateBlip(
+            config.collectPoint.coords,
+            1,
+            47,
+            0.8,
+            'Point de collecte - Briques'
+        )
+        
+        ClientUtils.Notify('Allez collecter des briques au point marqué', 'info')
+        StartConstructionCollect(config)
+    end
+end
+
+function StartConstructionCollect(config)
+    local threadId = CreateThread(function()
         while IsJobActive() and collectedItems < config.item.amount do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.collectPoint.coords)
@@ -57,7 +93,7 @@ function StartConstructionJob(config)
                 if distance < 2.0 then
                     ClientUtils.DrawText3D(config.collectPoint.coords, '[E] Collecter des briques')
                     
-                    if IsControlJustPressed(0, 38) then -- E
+                    if IsControlJustPressed(0, 38) then
                         CollectConstructionItem(config)
                     end
                 end
@@ -67,9 +103,13 @@ function StartConstructionJob(config)
         end
         
         if IsJobActive() and collectedItems >= config.item.amount then
+            print ('All bricks collected, starting deposit phase')
+            print ('Collected Items: ' .. collectedItems)
             StartConstructionDeposit(config)
         end
     end)
+    
+    table.insert(activeThreads, threadId)
 end
 
 function CollectConstructionItem(config)
@@ -103,11 +143,9 @@ function StartConstructionDeposit(config)
     
     ClientUtils.Notify('Allez déposer les briques au point marqué', 'info')
     
-    if activeThread then
-        activeThread = nil
-    end
+    StopActiveThreads()
     
-    activeThread = CreateThread(function()
+    local threadId = CreateThread(function()
         while IsJobActive() do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.depositPoint.coords)
@@ -118,12 +156,11 @@ function StartConstructionDeposit(config)
                 if distance < 2.0 then
                     ClientUtils.DrawText3D(config.depositPoint.coords, '[E] Déposer les briques')
                     
-                    if IsControlJustPressed(0, 38) then -- E
-                    print('-----------------------------------')
-                    print('le travail est fini ? ' .. tostring(collectedItems >= config.item.amount))
-                    print('-----------------------------------')
+                    if IsControlJustPressed(0, 38) then
+                        print ('Depositing construction items')
+                        print ('vous depositez ' .. collectedItems .. ' briques')
                         DepositConstructionItems(config)
-                        break -- AMÉLIORATION: Sortir de la boucle après le dépôt
+                        return
                     end
                 end
             end
@@ -131,6 +168,8 @@ function StartConstructionDeposit(config)
             Wait(0)
         end
     end)
+    
+    table.insert(activeThreads, threadId)
 end
 
 function DepositConstructionItems(config)
@@ -145,7 +184,7 @@ function DepositConstructionItems(config)
     
     if success then
         TriggerServerEvent('kt_interim:depositItems', 'construction', config.item.name, collectedItems, config.rewards.amount)
-        CleanupJobResources()
+        CleanupJobResources() --CancelJob()
     end
 end
 
@@ -154,6 +193,10 @@ function StartCleaningJob(config)
     local currentPointIndex = 1
     
     local function SetupNextCollectPoint()
+        if not IsJobActive() then
+            return
+        end
+        
         if currentPointIndex > #config.collectPoints then
             StartCleaningDeposit(config)
             return
@@ -172,12 +215,9 @@ function StartCleaningJob(config)
         
         ClientUtils.Notify('Allez collecter la poubelle #' .. currentPointIndex, 'info')
         
-        -- CORRECTION: Nettoyer l'ancien thread
-        if activeThread then
-            activeThread = nil
-        end
+        StopActiveThreads()
         
-        activeThread = CreateThread(function()
+        local threadId = CreateThread(function()
             while IsJobActive() and collectedItems < config.item.amount do
                 local playerCoords = ClientUtils.GetPlayerCoords()
                 local distance = #(playerCoords - point.coords)
@@ -188,11 +228,11 @@ function StartCleaningJob(config)
                     if distance < 2.0 then
                         ClientUtils.DrawText3D(point.coords, '[E] Collecter la poubelle')
                         
-                        if IsControlJustPressed(0, 38) then -- E
+                        if IsControlJustPressed(0, 38) then
                             CollectCleaningItem(config, point)
                             currentPointIndex = currentPointIndex + 1
                             SetupNextCollectPoint()
-                            break
+                            return
                         end
                     end
                 end
@@ -200,6 +240,8 @@ function StartCleaningJob(config)
                 Wait(0)
             end
         end)
+        
+        table.insert(activeThreads, threadId)
     end
     
     SetupNextCollectPoint()
@@ -235,11 +277,9 @@ function StartCleaningDeposit(config)
     
     ClientUtils.Notify('Allez déposer les poubelles à la déchetterie', 'info')
     
-    if activeThread then
-        activeThread = nil
-    end
+    StopActiveThreads()
     
-    activeThread = CreateThread(function()
+    local threadId = CreateThread(function()
         while IsJobActive() do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.depositPoint.coords)
@@ -250,9 +290,9 @@ function StartCleaningDeposit(config)
                 if distance < 2.0 then
                     ClientUtils.DrawText3D(config.depositPoint.coords, '[E] Jeter les poubelles')
                     
-                    if IsControlJustPressed(0, 38) then -- E
+                    if IsControlJustPressed(0, 38) then
                         DepositCleaningItems(config)
-                        break
+                        return
                     end
                 end
             end
@@ -260,6 +300,8 @@ function StartCleaningDeposit(config)
             Wait(0)
         end
     end)
+    
+    table.insert(activeThreads, threadId)
 end
 
 function DepositCleaningItems(config)
@@ -291,7 +333,7 @@ function StartDeliveryJob(config)
     
     ClientUtils.Notify('Allez collecter un colis au point marqué', 'info')
     
-    activeThread = CreateThread(function()
+    local threadId = CreateThread(function()
         while IsJobActive() and collectedItems == 0 do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.collectPoint.coords)
@@ -302,7 +344,7 @@ function StartDeliveryJob(config)
                 if distance < 2.0 then
                     ClientUtils.DrawText3D(config.collectPoint.coords, '[E] Prendre un colis')
                     
-                    if IsControlJustPressed(0, 38) then -- E
+                    if IsControlJustPressed(0, 38) then
                         CollectDeliveryPackage(config)
                     end
                 end
@@ -311,11 +353,12 @@ function StartDeliveryJob(config)
             Wait(0)
         end
         
-        -- AMÉLIORATION: Vérifier si le job est toujours actif
         if IsJobActive() and collectedItems > 0 then
             StartDeliveryRoute(config)
         end
     end)
+    
+    table.insert(activeThreads, threadId)
 end
 
 function CollectDeliveryPackage(config)
@@ -350,11 +393,9 @@ function StartDeliveryRoute(config)
     ClientUtils.SetWaypoint(deliveryPoint.coords, 'Point de livraison')
     ClientUtils.Notify('Livrez le colis au point marqué', 'info')
     
-    if activeThread then
-        activeThread = nil
-    end
+    StopActiveThreads()
     
-    activeThread = CreateThread(function()
+    local threadId = CreateThread(function()
         while IsJobActive() do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - deliveryPoint.coords)
@@ -365,9 +406,9 @@ function StartDeliveryRoute(config)
                 if distance < 2.0 then
                     ClientUtils.DrawText3D(deliveryPoint.coords, '[E] Livrer le colis')
                     
-                    if IsControlJustPressed(0, 38) then -- E
+                    if IsControlJustPressed(0, 38) then
                         DeliverPackage(config)
-                        break
+                        return
                     end
                 end
             end
@@ -375,6 +416,8 @@ function StartDeliveryRoute(config)
             Wait(0)
         end
     end)
+    
+    table.insert(activeThreads, threadId)
 end
 
 function DeliverPackage(config)
@@ -406,7 +449,7 @@ function StartShopLogisticsJob(config)
     
     ClientUtils.Notify('Allez collecter des cartons au point marqué', 'info')
     
-    activeThread = CreateThread(function()
+    local threadId = CreateThread(function()
         while IsJobActive() and collectedItems < config.item.amount do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.collectPoint.coords)
@@ -417,7 +460,7 @@ function StartShopLogisticsJob(config)
                 if distance < 2.0 then
                     ClientUtils.DrawText3D(config.collectPoint.coords, '[E] Prendre un carton')
                     
-                    if IsControlJustPressed(0, 38) then -- E
+                    if IsControlJustPressed(0, 38) then
                         CollectShopBox(config)
                     end
                 end
@@ -430,6 +473,8 @@ function StartShopLogisticsJob(config)
             StartShopDeposit(config)
         end
     end)
+    
+    table.insert(activeThreads, threadId)
 end
 
 function CollectShopBox(config)
@@ -462,11 +507,9 @@ function StartShopDeposit(config)
     
     ClientUtils.Notify('Allez déposer les cartons au point marqué', 'info')
     
-    if activeThread then
-        activeThread = nil
-    end
+    StopActiveThreads()
     
-    activeThread = CreateThread(function()
+    local threadId = CreateThread(function()
         while IsJobActive() do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.depositPoint.coords)
@@ -477,9 +520,9 @@ function StartShopDeposit(config)
                 if distance < 2.0 then
                     ClientUtils.DrawText3D(config.depositPoint.coords, '[E] Déposer les cartons')
                     
-                    if IsControlJustPressed(0, 38) then -- E
+                    if IsControlJustPressed(0, 38) then
                         DepositShopBoxes(config)
-                        break
+                        return
                     end
                 end
             end
@@ -487,6 +530,8 @@ function StartShopDeposit(config)
             Wait(0)
         end
     end)
+    
+    table.insert(activeThreads, threadId)
 end
 
 function DepositShopBoxes(config)
@@ -533,7 +578,7 @@ function StartTaxiJob(config)
 end
 
 function StartTaxiPickup(config)
-    activeThread = CreateThread(function()
+    local threadId = CreateThread(function()
         while IsJobActive() and not jobNPC do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - pickupPoint.coords)
@@ -564,7 +609,7 @@ function StartTaxiPickup(config)
                         ClientUtils.Notify('Amenez le client à ' .. deliveryPoint.label, 'info')
                         
                         StartTaxiDelivery(config)
-                        break
+                        return
                     end
                 end
             end
@@ -572,16 +617,16 @@ function StartTaxiPickup(config)
             Wait(0)
         end
     end)
+    
+    table.insert(activeThreads, threadId)
 end
 
 function StartTaxiDelivery(config)
     local startCoords = ClientUtils.GetPlayerCoords()
     
-    if activeThread then
-        activeThread = nil
-    end
+    StopActiveThreads()
     
-    activeThread = CreateThread(function()
+    local threadId = CreateThread(function()
         while IsJobActive() do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - deliveryPoint.coords)
@@ -600,13 +645,15 @@ function StartTaxiDelivery(config)
                     
                     TriggerServerEvent('kt_interim:completeJob', 'taxi', reward)
                     CleanupJobResources()
-                    break
+                    return
                 end
             end
             
             Wait(0)
         end
     end)
+    
+    table.insert(activeThreads, threadId)
 end
 
 function StartTruckerJob(config)
@@ -648,7 +695,7 @@ end
 function StartTruckerCollect(config)
     collectedItems = 0
     
-    activeThread = CreateThread(function()
+    local threadId = CreateThread(function()
         while IsJobActive() and collectedItems < config.item.amount do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - config.collectPoint.coords)
@@ -659,7 +706,7 @@ function StartTruckerCollect(config)
                 if distance < 5.0 then
                     ClientUtils.DrawText3D(config.collectPoint.coords, '[E] Charger les caisses')
                     
-                    if IsControlJustPressed(0, 38) then -- E
+                    if IsControlJustPressed(0, 38) then
                         CollectTruckerCrate(config)
                     end
                 end
@@ -672,6 +719,8 @@ function StartTruckerCollect(config)
             StartTruckerDelivery(config)
         end
     end)
+    
+    table.insert(activeThreads, threadId)
 end
 
 function CollectTruckerCrate(config)
@@ -706,11 +755,9 @@ function StartTruckerDelivery(config)
     ClientUtils.SetWaypoint(deliveryPoint.coords, deliveryPoint.label)
     ClientUtils.Notify('Livrez les marchandises à ' .. deliveryPoint.label, 'info')
     
-    if activeThread then
-        activeThread = nil
-    end
+    StopActiveThreads()
     
-    activeThread = CreateThread(function()
+    local threadId = CreateThread(function()
         while IsJobActive() do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - deliveryPoint.coords)
@@ -721,9 +768,9 @@ function StartTruckerDelivery(config)
                 if distance < 10.0 then
                     ClientUtils.DrawText3D(deliveryPoint.coords, '[E] Décharger les caisses')
                     
-                    if IsControlJustPressed(0, 38) then -- E
+                    if IsControlJustPressed(0, 38) then
                         DeliverTruckerCrates(config)
-                        break
+                        return
                     end
                 end
             end
@@ -731,6 +778,8 @@ function StartTruckerDelivery(config)
             Wait(0)
         end
     end)
+    
+    table.insert(activeThreads, threadId)
 end
 
 function DeliverTruckerCrates(config)
@@ -750,10 +799,8 @@ function DeliverTruckerCrates(config)
 end
 
 function CleanupJobResources()
-    -- AMÉLIORATION: Arrêter le thread actif
-    if activeThread then
-        activeThread = nil
-    end
+    StopActiveThreads()
+     CancelJob()
     
     if jobBlip then
         ClientUtils.RemoveBlip(jobBlip)

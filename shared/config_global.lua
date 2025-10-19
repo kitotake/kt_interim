@@ -1,24 +1,23 @@
 Config = {}
 
--- Configuration générale
+
 Config.Locale = 'fr'
-Config.UseOxTarget = true -- Si vous utilisez ox_target
+Config.UseOxTarget = true
 Config.Notification = 'ox_lib' -- ox_lib, esx, qb, etc.
 Config.ProgressBar = 'ox_lib' -- ox_lib, esx, qb, etc.
 
--- Blips configuration
+
 Config.ShowBlips = true
 Config.BlipSprite = 408
 Config.BlipColor = 5
 Config.BlipScale = 0.8
 
--- Jobs configuration
 Config.Jobs = {
     construction = {
         enabled = true,
         label = "Ouvrier de construction",
-        description = "Collectez et déposez des briques sur le chantier",
-        salary = 150, -- Salaire de base par mission
+        description = "Collectez et déposez des briques sur le chantier avec un véhicule",
+        salary = 150, 
         blip = {
             coords = vector3(1090.82, -2255.53, 31.22),
             sprite = 478,
@@ -26,12 +25,17 @@ Config.Jobs = {
             scale = 0.8
         },
         npc = {
-            coords = vector4(1092.499,-2253.792,30.233, 266.46), 
+            coords = vector4(1092.499, -2253.792, 30.233, 266.46), 
             model = 's_m_y_construct_01',
             scenario = 'WORLD_HUMAN_CLIPBOARD'
         },
+        vehicleSpawn = {
+            coords = vector4(1092.79, -2262.30, 30.26, 90.0),
+            model = 'burrito3',
+            plate = 'INTERIM'
+        },
         collectPoint = {
-            coords = vector3(1022.06 ,2517.37 , 45.520), -- prop_pile_dirt_02
+            coords = vector3(1022.06, 2517.37, 45.520),
             marker = true,
             markerType = 1,
             markerColor = {r = 255, g = 165, b = 0}
@@ -49,7 +53,7 @@ Config.Jobs = {
             required = true
         },
         rewards = {
-            type = 'money', -- 'money' ou 'item'
+            type = 'money',
             amount = 150
         },
         animation = {
@@ -82,7 +86,7 @@ Config.Jobs = {
             model = 's_m_m_janitor',
             scenario = 'WORLD_HUMAN_JANITOR'
         },
-        collectPoints = { -- Multiple points de collecte
+        collectPoints = {
             {coords = vector3(-305.72, -1530.24, 27.72), marker = true},
             {coords = vector3(-318.29, -1524.43, 27.72), marker = true},
             {coords = vector3(-332.15, -1537.19, 27.72), marker = true}
@@ -139,7 +143,7 @@ Config.Jobs = {
             markerType = 1,
             markerColor = {r = 255, g = 165, b = 0}
         },
-        deliveryPoints = { -- Points de livraison aléatoires
+        deliveryPoints = {
             {coords = vector3(285.28, -585.44, 43.29)},
             {coords = vector3(-265.45, -957.28, 31.22)},
             {coords = vector3(1138.28, -469.88, 66.73)},
@@ -243,14 +247,14 @@ Config.Jobs = {
             model = 'taxi',
             plate = 'INTERIM'
         },
-        pickupPoints = { -- Points de prise en charge aléatoires
+        pickupPoints = {
             {coords = vector3(127.28, -1045.28, 29.28), label = "Centre-ville"},
             {coords = vector3(-1037.28, -2735.82, 20.17), label = "Aéroport"},
             {coords = vector3(1138.28, -469.88, 66.73), label = "Mirror Park"},
             {coords = vector3(-1193.28, -891.28, 13.98), label = "Vespucci"},
             {coords = vector3(373.82, -1812.28, 29.09), label = "Grove Street"}
         },
-        destinationPoints = { -- Points de destination aléatoires
+        destinationPoints = {
             {coords = vector3(-265.45, -957.28, 31.22), label = "Mission Row"},
             {coords = vector3(1138.28, -469.88, 66.73), label = "Mirror Park"},
             {coords = vector3(285.28, -585.44, 43.29), label = "Pillbox Hill"},
@@ -260,7 +264,7 @@ Config.Jobs = {
         rewards = {
             type = 'money',
             baseAmount = 100,
-            perMeterRate = 0.05 -- 5 centimes par mètre
+            perMeterRate = 0.05
         },
         npcPassenger = {
             models = {'a_m_m_business_01', 'a_f_m_business_02', 'a_m_y_business_01', 'a_f_y_business_01'}
@@ -290,12 +294,12 @@ Config.Jobs = {
             plate = 'INTERIM'
         },
         collectPoint = {
-            coords = vector3(1202.33,-3239.22,6.02),
+            coords = vector3(1202.33, -3239.22, 6.02),
             marker = true,
             markerType = 1,
             markerColor = {r = 255, g = 165, b = 0}
         },
-        depositPoints = { -- Points de dépôt aléatoires
+        depositPoints = {
             {coords = vector3(992.28, -3097.82, -38.99), label = "Entrepôt sud"},
             {coords = vector3(1201.28, -1335.82, 35.22), label = "Entrepôt nord"},
             {coords = vector3(-1078.28, -2827.82, 27.70), label = "Entrepôt aéroport"}
@@ -313,7 +317,6 @@ Config.Jobs = {
     }
 }
 
--- Items à ajouter dans ox_inventory/data/items.lua
 Config.ItemsToAdd = {
     construction_brick = {
         label = 'Brique de construction',
