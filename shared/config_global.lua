@@ -70,7 +70,7 @@ Config.Jobs = {
         }
     },
 
-    cleaning = {
+   cleaning = {
         enabled = true,
         label = "Agent d'entretien",
         description = "Collectez les poubelles et déposez-les à la déchetterie",
@@ -85,6 +85,11 @@ Config.Jobs = {
             coords = vector4(-322.24, -1546.02, 30.02, 280.0),
             model = 's_m_m_janitor',
             scenario = 'WORLD_HUMAN_JANITOR'
+        },
+        vehicleSpawn = {
+            coords = vector4(-330.45, -1560.28, 27.26, 90.0),
+            model = 'burrito3',
+            plate = 'INTERIM'
         },
         collectPoints = {
             {coords = vector3(-305.72, -1530.24, 27.72), marker = true},

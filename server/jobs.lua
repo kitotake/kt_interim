@@ -406,8 +406,7 @@ RegisterCommand('interimquests', function(source)
                     i, quest.jobType, status, quest.reward)}
             })
             
-            print('Sent quest info to player ' .. source)
-           
+                       
             print(string.format('Quête %d | %s: %s | Récompense: $%d', i, quest.jobType, status, quest.reward))
        
 
@@ -415,7 +414,6 @@ RegisterCommand('interimquests', function(source)
     end
 end, false)
 
--- ========== SYSTÈME DE SALAIRE DYNAMIQUE ==========
 local jobDemand = {}
 
 function UpdateJobDemand(jobType)
