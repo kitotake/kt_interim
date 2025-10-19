@@ -209,8 +209,7 @@ function StartConstructionCollect(config)
 
                 if distance < 5.0 then
                     if config.vehicleSpawn and IsInJobVehicle() then
-                        ClientUtils.DrawText3D(config.collectPoint.coords,
-                            '⚠️ Vous devez quitter votre véhicule pour collecter !')
+                        ClientUtils.DrawText3D(config.collectPoint.coords, '⚠️ Vous devez quitter votre véhicule pour collecter !')
                     else
                         ClientUtils.DrawText3D(config.collectPoint.coords, '[E] Collecter des briques')
 
@@ -232,20 +231,33 @@ function StartConstructionCollect(config)
     table.insert(activeThreads, threadId)
 end
 
+local isCollecting = false
+
 function CollectConstructionItem(config)
+    if isCollecting then
+        ClientUtils.Notify('Action en cours...', 'warning')
+        return
+    end
+    
+    isCollecting = true
     ClientUtils.DisableControls(true, true, false)
 
-    local success = ClientUtils.ProgressBar('Collecte de briques...', config.animation.collect.duration, {
-        anim = { dict = config.animation.collect.dict, clip = config.animation.collect.anim }
+    local success = ClientUtils.ProgressBar('Collecte de briques...', 
+        config.animation.collect.duration, {
+        anim = { 
+            dict = config.animation.collect.dict, 
+            clip = config.animation.collect.anim 
+        }
     })
 
     ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
+    isCollecting = false
 
     if success then
         collectedItems = collectedItems + 1
-        ClientUtils.Notify('Briques collectées: ' .. collectedItems .. '/' .. config.item.amount, 'success')
-
+        ClientUtils.Notify('Briques collectées: ' .. collectedItems .. 
+            '/' .. config.item.amount, 'success')
         TriggerServerEvent('kt_interim:addItem', config.item.name, 1)
     end
 end
@@ -276,8 +288,7 @@ function StartConstructionDeposit(config)
 
                 if distance < 5.0 then
                     if config.vehicleSpawn and IsInJobVehicle() then
-                        ClientUtils.DrawText3D(config.collectPoint.coords,
-                            '⚠️ Vous devez quitter votre véhicule pour déposer !')
+                        ClientUtils.DrawText3D(config.depositPoint.coords, '⚠️ Vous devez quitter votre véhicule pour déposer !')
                     else
                         ClientUtils.DrawText3D(config.depositPoint.coords, '[E] Déposer les briques')
 
@@ -846,7 +857,7 @@ function StartShopDeposit(config)
 
                 if distance < 5.0 then
                     if config.vehicleSpawn and IsInJobVehicle() then
-                        ClientUtils.DrawText3D(config.collectPoint.coords,'⚠️ Vous devez quitter votre véhicule pour collecter !')
+                        ClientUtils.DrawText3D(config.depositPoint.coords,'⚠️ Vous devez quitter votre véhicule pour collecter !')
                     else
                         ClientUtils.DrawText3D(config.depositPoint.coords, '[E] Déposer les cartons')
 
@@ -1250,41 +1261,66 @@ function DeliverTruckerCrates(config)
     end
 end
 
--- ========================================
--- CLEANUP
--- ========================================
 
 function CleanupJobResources()
+    print('[KT_INTERIM] Starting cleanup...')
+    
+    -- Arrêter les threads
     StopActiveThreads()
+    
+    -- Annuler le job côté serveur
     CancelJob()
 
+    -- Nettoyer les blips
     if jobBlip then
         ClientUtils.RemoveBlip(jobBlip)
         jobBlip = nil
     end
 
-    if jobVehicle then
-        ClientUtils.DeleteVehicle(jobVehicle)
+    -- Nettoyer les véhicules avec délai
+    if jobVehicle and DoesEntityExist(jobVehicle) then
+        SetEntityAsMissionEntity(jobVehicle, true, true)
+        
+        CreateThread(function()
+            Wait(1000)
+            if DoesEntityExist(jobVehicle) then
+                ClientUtils.DeleteVehicle(jobVehicle)
+            end
+        end)
+        
         jobVehicle = nil
     end
 
-    if jobTrailer then
-        ClientUtils.DeleteVehicle(jobTrailer)
+    if jobTrailer and DoesEntityExist(jobTrailer) then
+        SetEntityAsMissionEntity(jobTrailer, true, true)
+        
+        CreateThread(function()
+            Wait(1000)
+            if DoesEntityExist(jobTrailer) then
+                ClientUtils.DeleteVehicle(jobTrailer)
+            end
+        end)
+        
         jobTrailer = nil
     end
 
+    -- Nettoyer NPCs
     if jobNPC then
         ClientUtils.DeleteNPC(jobNPC)
         jobNPC = nil
     end
 
+    -- Nettoyer props
     if jobProp then
         ClientUtils.DeleteProp(jobProp)
         jobProp = nil
     end
 
+    -- Réinitialiser variables
     collectedItems = 0
     deliveryPoint = nil
     pickupPoint = nil
     vehicleReturnZone = nil
+    
+    print('[KT_INTERIM] Cleanup completed')
 end

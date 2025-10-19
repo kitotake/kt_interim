@@ -26,23 +26,40 @@ CreateThread(function()
 end)
 
 -- Protection anti-spam
+local playerActionLimiter = {}
+
 local function CanPerformAction(source, actionType, cooldown)
     cooldown = cooldown or 2000
     
-    if not lastActionTime[source] then
-        lastActionTime[source] = {}
+    if not playerActionLimiter[source] then
+        playerActionLimiter[source] = {}
     end
     
     local currentTime = GetGameTimer()
-    local lastTime = lastActionTime[source][actionType] or 0
+    local lastTime = playerActionLimiter[source][actionType] or 0
+    local timeDiff = currentTime - lastTime
     
-    if (currentTime - lastTime) < cooldown then
+    if timeDiff < cooldown then
+        -- Log tentative de spam
+        if timeDiff < cooldown / 2 then
+            ServerUtils.Log(string.format(
+                'Spam detected: %s (%.2fs ago)', 
+                actionType, 
+                timeDiff / 1000
+            ), 'WARN', source)
+        end
         return false
     end
     
-    lastActionTime[source][actionType] = currentTime
+    playerActionLimiter[source][actionType] = currentTime
     return true
 end
+
+-- Cleanup lors de la déconnexion
+AddEventHandler('playerDropped', function()
+    local source = source
+    playerActionLimiter[source] = nil
+end)
 
 -- Event: Ajouter un item pendant la collecte
 RegisterNetEvent('kt_interim:addItem', function(item, amount)
@@ -78,83 +95,79 @@ RegisterNetEvent('kt_interim:addItem', function(item, amount)
     end
 end)
 
--- Event: Déposer les items et recevoir la récompense
 RegisterNetEvent('kt_interim:depositItems', function(jobType, itemName, itemAmount, reward)
     local source = source
-    
     if not ServerUtils.PlayerExists(source) then
         ServerUtils.Log('Player does not exist', 'ERROR', source)
         return
     end
-    
+
     local identifier = ServerUtils.GetIdentifier(source)
-    
-    -- Vérifier que le joueur a un job actif
+
+    -- Vérifier job actif
     if not activeJobs[source] or activeJobs[source] ~= jobType then
         ServerUtils.Log('Attempt to deposit items without active job or wrong job type', 'WARN', source)
         TriggerClientEvent('kt_interim:forceStopJob', source)
         return
     end
-    
-    -- Anti-cheat: Vérifier le cooldown
+
+    -- Anti-cheat : cooldown
     if not ServerUtils.CheckJobCooldown(source, jobType, 10000) then
         ServerUtils.Notify(source, 'Vous devez attendre avant de refaire cette mission', 'error')
         ServerUtils.Log('Cooldown violation for job: ' .. jobType, 'WARN', source)
         TriggerClientEvent('kt_interim:forceStopJob', source)
         return
     end
-    
-    -- Vérifier que le joueur a bien les items
-    if not ServerUtils.HasItem(source, itemName, itemAmount) then
-        ServerUtils.Notify(source, 'Vous n\'avez pas les items requis !', 'error')
-        ServerUtils.Log('Item check failed for job: ' .. jobType, 'WARN', source)
-        TriggerClientEvent('kt_interim:forceStopJob', source)
-        return
-    end
-    
-    -- Validation spécifique au job
-    local validationFunc = {
-    construction = exports['kt_interim'].ValidateConstructionJob,
-    cleaning = exports['kt_interim'].ValidateCleaningJob,
-    delivery = exports['kt_interim'].ValidateDeliveryJob,
-    shop_logistics = exports['kt_interim'].ValidateShopLogisticsJob,
-    taxi = exports['kt_interim'].ValidateTaxiJob,
-    trucker = exports['kt_interim'].ValidateTruckerJob,
-}
-    -- Validation basique commune
+
+    -- Config du job
     local config = Config.Jobs[jobType]
     if not config or not config.enabled then
         ServerUtils.Notify(source, 'Job non disponible', 'error')
         TriggerClientEvent('kt_interim:forceStopJob', source)
         return
     end
-    
-    -- Vérifier le montant de la récompense (tolérance de 50%)
+
+    -- Vérification du nombre d’items requis
+    if config.item and config.item.amount then
+        if itemAmount < config.item.amount then
+            ServerUtils.Log(('Insufficient items: %d/%d'):format(itemAmount, config.item.amount), 'WARN', source)
+            ServerUtils.Notify(source, 'Items insuffisants', 'error')
+            TriggerClientEvent('kt_interim:forceStopJob', source)
+            return
+        end
+        -- Limite la quantité au strict requis
+        itemAmount = math.min(itemAmount, config.item.amount)
+    end
+
+    -- Vérifier possession réelle des items
+    if not ServerUtils.HasItem(source, itemName, itemAmount) then
+        ServerUtils.Notify(source, 'Vous n\'avez pas les items requis !', 'error')
+        ServerUtils.Log('Item check failed for job: ' .. jobType, 'WARN', source)
+        TriggerClientEvent('kt_interim:forceStopJob', source)
+        return
+    end
+
+    -- Vérification du montant de la récompense
     local maxReward = config.salary * 1.5
     local minReward = config.salary * 0.5
-    
+
     if reward > maxReward or reward < minReward then
         ServerUtils.Log(string.format('Suspicious reward: $%d (expected $%d-$%d)', reward, minReward, maxReward), 'WARN', source)
         ServerUtils.Notify(source, 'Récompense invalide', 'error')
         TriggerClientEvent('kt_interim:forceStopJob', source)
         return
     end
-    
-    -- Vérifier la quantité d'items si applicable
-    if config.item and config.item.amount and itemAmount > 0 then
-        if itemAmount < config.item.amount then
-            ServerUtils.Log(string.format('Insufficient item amount: %d (expected at least %d)', itemAmount, config.item.amount), 'WARN', source)
-            ServerUtils.Notify(source, 'Vous n\'avez pas assez d\'items !', 'error')
-            TriggerClientEvent('kt_interim:forceStopJob', source)
-            return
-        end
-        -- Si le joueur a plus d'items que nécessaire, on retire seulement la quantité requise
-        if itemAmount > config.item.amount then
-            itemAmount = config.item.amount
-        end
-    end
-    
-    -- Validation spécifique au type de job (optionnel)
+
+    -- Validation spécifique au job (si définie)
+    local validationFunc = {
+        construction = exports['kt_interim'].ValidateConstructionJob,
+        cleaning = exports['kt_interim'].ValidateCleaningJob,
+        delivery = exports['kt_interim'].ValidateDeliveryJob,
+        shop_logistics = exports['kt_interim'].ValidateShopLogisticsJob,
+        taxi = exports['kt_interim'].ValidateTaxiJob,
+        trucker = exports['kt_interim'].ValidateTruckerJob,
+    }
+
     if validationFunc[jobType] then
         local valid, errorMsg = validationFunc[jobType](source, itemAmount)
         if not valid then
@@ -163,39 +176,28 @@ RegisterNetEvent('kt_interim:depositItems', function(jobType, itemName, itemAmou
             return
         end
     end
-    
+
     -- Retirer les items
     local removed = ServerUtils.RemoveItem(source, itemName, itemAmount)
-    
     if not removed then
         ServerUtils.Notify(source, 'Erreur lors du retrait des items', 'error')
         return
     end
-    
-    -- Donner la récompense
+
+    -- Ajouter la récompense
     local rewarded = ServerUtils.AddMoney(source, reward)
-    
     if rewarded then
         ServerUtils.Notify(source, 'Mission terminée ! Vous avez reçu ' .. ServerUtils.FormatMoney(reward), 'success')
-        
-        -- Sauvegarder dans la base de données
-        SaveJobCompletion(identifier, jobType, {
-            reward = reward,
-            itemsDeposited = itemAmount
-        })
-        
-        -- Log
+        SaveJobCompletion(identifier, jobType, { reward = reward, itemsDeposited = itemAmount })
+
         ServerUtils.Log(string.format('Job completed: %s | Reward: $%d | Items: %d', jobType, reward, itemAmount), 'SUCCESS', source)
-        
-        -- Retirer le job actif
+
         activeJobs[source] = nil
-        
-        -- Triggers additionnels (réputation, bonus, quêtes)
+
         TriggerEvent('kt_interim:addReputation', source, jobType)
         TriggerEvent('kt_interim:updateQuest', source, jobType)
         TriggerEvent('kt_interim:applyBonus', source, jobType, reward)
     else
-        -- Rendre les items si le paiement échoue
         ServerUtils.AddItem(source, itemName, itemAmount)
         ServerUtils.Notify(source, 'Erreur lors du paiement', 'error')
     end
@@ -412,19 +414,6 @@ RegisterCommand('interim_reset', function(source, args)
     end
 end, false)
 
--- Nettoyage quand un joueur se déconnecte
-AddEventHandler('playerDropped', function(reason)
-    local source = source
-    
-    if activeJobs[source] then
-        ServerUtils.Log('Player disconnected during job', 'INFO', source)
-        activeJobs[source] = nil
-    end
-    
-    if lastActionTime[source] then
-        lastActionTime[source] = nil
-    end
-end)
 
 exports('IsPlayerOnJob', function(source)
     return activeJobs[source] ~= nil

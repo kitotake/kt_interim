@@ -22,15 +22,28 @@ end)
 
 function ServerUtils.Log(message, logType, playerSource)
     local timestamp = os.date('%Y-%m-%d %H:%M:%S')
-    local logMessage = string.format('[%s] [KT_INTERIM] [%s] %s', timestamp, logType or 'INFO', message)
+    local color = {
+        INFO = '^2',
+        WARN = '^3',
+        ERROR = '^1',
+        SUCCESS = '^2',
+        MONEY = '^5',
+        ITEM = '^6'
+    }
+    
+    local prefix = color[logType] or '^7'
+    local logMessage = string.format('%s[%s] [KT_INTERIM] [%s]^7 %s', 
+        prefix, timestamp, logType or 'INFO', message)
+    
+    if playerSource and ServerUtils.PlayerExists(playerSource) then
+        local playerName = GetPlayerName(playerSource)
+        local identifier = ServerUtils.GetIdentifier(playerSource)
+        logMessage = logMessage .. string.format(' | Player: %s [%s]', 
+            playerName or 'Unknown', identifier or 'Unknown')
+    end
     
     print(logMessage)
     
-    if playerSource then
-        local playerName = GetPlayerName(playerSource)
-        local identifier = ServerUtils.GetIdentifier(playerSource)
-        logMessage = logMessage .. string.format(' | Player: %s (%s)', playerName or 'Unknown', identifier or 'Unknown')
-    end
 end
 
 function ServerUtils.GetIdentifier(source)

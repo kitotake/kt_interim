@@ -16,11 +16,9 @@ function ValidateJobCompletion(source, jobType, itemAmount, reward)
         return false, 'Récompense invalide'
     end
     
-    -- ✅ CORRECTION: Vérifier que itemAmount est valide (pas égal à 0 et cohérent)
+    
     if config.item and config.item.amount and itemAmount > 0 then
-        if itemAmount ~= config.item.amount then  -- ✅ INVERSÉ (était ==)
-            print(itemAmount)
-            print(config.item.amount)
+        if itemAmount < config.item.amount then  
             ServerUtils.Log(string.format('Invalid item amount: %d (expected %d)', itemAmount, config.item.amount), 'WARN', source)
             return false, 'Quantité d\'items invalide'
         end
@@ -39,9 +37,8 @@ function ValidateConstructionJob(source, itemAmount)
     if not config or not config.enabled then
         return false, 'Job non disponible'
     end
-    
-    -- ✅ CORRECTION: Vérifier que la quantité N'EST PAS égale (était ==)
-    if itemAmount ~= config.item.amount then
+
+    if itemAmount < config.item.amount then
         ServerUtils.Log('Invalid item amount for construction job', 'WARN', source)
         return false, 'Quantité d\'items invalide'
     end
@@ -56,8 +53,7 @@ function ValidateCleaningJob(source, itemAmount)
         return false, 'Job non disponible'
     end
     
-    -- ✅ CORRECTION
-    if itemAmount ~= config.item.amount then
+    if itemAmount < config.item.amount then
         ServerUtils.Log('Invalid item amount for cleaning job', 'WARN', source)
         return false, 'Quantité d\'items invalide'
     end
@@ -87,8 +83,7 @@ function ValidateShopLogisticsJob(source, itemAmount)
         return false, 'Job non disponible'
     end
     
-    -- ✅ CORRECTION
-    if itemAmount ~= config.item.amount then
+    if itemAmount < config.item.amount then
         ServerUtils.Log('Invalid item amount for shop logistics job', 'WARN', source)
         return false, 'Quantité d\'items invalide'
     end
@@ -129,8 +124,7 @@ function ValidateTruckerJob(source, itemAmount)
         return false, 'Job non disponible'
     end
     
-    -- ✅ CORRECTION
-    if itemAmount ~= config.item.amount then
+    if itemAmount < config.item.amount then
         ServerUtils.Log('Invalid item amount for trucker job', 'WARN', source)
         return false, 'Quantité d\'items invalide'
     end
