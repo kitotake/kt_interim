@@ -4,7 +4,7 @@ game 'gta5'
 name "kt_interim job"
 author "kitotake"
 description 'Système d\'intérim complet avec ox_lib et ox_inventory'
-version '1.5.0'
+version '2.0.0'
 
 lua54 'yes'
 

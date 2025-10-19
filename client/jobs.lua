@@ -1,3 +1,4 @@
+
 local jobVehicle = nil
 local jobTrailer = nil
 local jobBlip = nil
@@ -8,6 +9,8 @@ local deliveryPoint = nil
 local pickupPoint = nil
 local activeThreads = {}
 local vehicleReturnZone = nil
+local isCollecting = false  
+local vehicleReturning = false 
 
 RegisterNetEvent('kt_interim:startJob', function(jobName, jobConfig)
     if jobName == 'construction' then
@@ -40,7 +43,6 @@ end
 local function StopActiveThreads()
     for _, thread in pairs(activeThreads) do
         if thread then
-            -- Les threads se termineront naturellement avec IsJobActive() = false
         end
     end
     activeThreads = {}
@@ -55,11 +57,14 @@ local function IsInJobVehicle()
     return vehicle == jobVehicle
 end
 
--- ✅ CORRECTION: Fonction globale pour le retour véhicule
 function StartVehicleReturn(spawnCoords, jobName)
+    if vehicleReturning then
+        return
+    end
+    
+    vehicleReturning = true
     ClientUtils.RemoveBlip(jobBlip)
 
-    -- Conversion sécurisée
     if type(spawnCoords) ~= "vector3" then
         spawnCoords = vector3(spawnCoords.x, spawnCoords.y, spawnCoords.z)
     end
@@ -78,7 +83,7 @@ function StartVehicleReturn(spawnCoords, jobName)
     StopActiveThreads()
 
     local threadId = CreateThread(function()
-        while IsJobActive() and jobVehicle and DoesEntityExist(jobVehicle) do
+        while IsJobActive() and jobVehicle and DoesEntityExist(jobVehicle) and vehicleReturning do
             local playerCoords = ClientUtils.GetPlayerCoords()
             local distance = #(playerCoords - spawnCoords)
 
@@ -113,6 +118,14 @@ function ReturnVehicle()
     local playerPed = PlayerPedId()
     TaskLeaveVehicle(playerPed, jobVehicle, 0)
     Wait(2000)
+
+    SetEntityInvincible(jobVehicle, true)
+    SetVehicleDoorsLocked(jobVehicle, 2)
+    SetVehicleUndriveable(jobVehicle, true)
+    
+    if jobTrailer and DoesEntityExist(jobTrailer) then
+        SetEntityInvincible(jobTrailer, true)
+    end
 
     SetEntityAlpha(jobVehicle, 255, false)
     if jobTrailer and DoesEntityExist(jobTrailer) then
@@ -149,13 +162,10 @@ function ReturnVehicle()
         end
 
         ClientUtils.Notify('Le véhicule a été récupéré', 'info')
+        vehicleReturning = false
         CleanupJobResources()
     end)
 end
-
--- ========================================
--- JOB: CONSTRUCTION
--- ========================================
 
 function StartConstructionJob(config)
     collectedItems = 0
@@ -230,8 +240,6 @@ function StartConstructionCollect(config)
 
     table.insert(activeThreads, threadId)
 end
-
-local isCollecting = false
 
 function CollectConstructionItem(config)
     if isCollecting then
@@ -308,6 +316,11 @@ function StartConstructionDeposit(config)
 end
 
 function DepositConstructionItems(config)
+    if isCollecting then
+        return
+    end
+    
+    isCollecting = true
     ClientUtils.DisableControls(true, true, false)
 
     local success = ClientUtils.ProgressBar('Dépôt des briques...', config.animation.deposit.duration, {
@@ -316,11 +329,14 @@ function DepositConstructionItems(config)
 
     ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
+    isCollecting = false
 
     if success then
         TriggerServerEvent('kt_interim:depositItems', 'construction', config.item.name, collectedItems,
             config.rewards.amount)
 
+        Wait(1000)
+        
         collectedItems = 0
 
         local alert = lib.alertDialog({
@@ -355,10 +371,6 @@ function DepositConstructionItems(config)
         end
     end
 end
-
--- ========================================
--- JOB: CLEANING
--- ========================================
 
 function StartCleaningJob(config)
     collectedItems = 0
@@ -446,6 +458,11 @@ function StartCleaningCollectSequence(config)
 end
 
 function CollectCleaningItem(config, point)
+    if isCollecting then
+        return
+    end
+    
+    isCollecting = true
     ClientUtils.DisableControls(true, true, false)
 
     local success = ClientUtils.ProgressBar('Collecte de la poubelle...', config.animation.collect.duration, {
@@ -454,6 +471,7 @@ function CollectCleaningItem(config, point)
 
     ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
+    isCollecting = false
 
     if success then
         collectedItems = collectedItems + 1
@@ -487,7 +505,7 @@ function StartCleaningDeposit(config)
                     config.depositPoint.markerColor)
 
                 if distance < 5.0 then
-                    if config.vehicleSpawn and not IsInJobVehicle() then
+                    if config.vehicleSpawn and IsInJobVehicle() then
                         ClientUtils.DrawText3D(config.depositPoint.coords, '⚠️ Vous devez quitter votre véhicule pour déposer !')
                     else
                         ClientUtils.DrawText3D(config.depositPoint.coords, '[E] Jeter les poubelles')
@@ -508,6 +526,11 @@ function StartCleaningDeposit(config)
 end
 
 function DepositCleaningItems(config)
+    if isCollecting then
+        return
+    end
+    
+    isCollecting = true
     ClientUtils.DisableControls(true, true, false)
 
     local success = ClientUtils.ProgressBar('Dépôt des poubelles...', config.animation.deposit.duration, {
@@ -516,11 +539,13 @@ function DepositCleaningItems(config)
 
     ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
+    isCollecting = false
 
     if success then
-        TriggerServerEvent('kt_interim:depositItems', 'cleaning', config.item.name, collectedItems, config.rewards
-            .amount)
+        TriggerServerEvent('kt_interim:depositItems', 'cleaning', config.item.name, collectedItems, config.rewards.amount)
 
+        Wait(1000)
+        
         collectedItems = 0
 
         local alert = lib.alertDialog({
@@ -545,10 +570,6 @@ function DepositCleaningItems(config)
         end
     end
 end
-
--- ========================================
--- JOB: DELIVERY
--- ========================================
 
 function StartDeliveryJob(config)
     collectedItems = 0
@@ -625,6 +646,11 @@ function StartDeliveryCollect(config)
 end
 
 function CollectDeliveryPackage(config)
+    if isCollecting then
+        return
+    end
+    
+    isCollecting = true
     ClientUtils.DisableControls(true, true, false)
 
     local success = ClientUtils.ProgressBar('Chargement du colis...', config.animation.collect.duration, {
@@ -633,6 +659,7 @@ function CollectDeliveryPackage(config)
 
     ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
+    isCollecting = false
 
     if success then
         collectedItems = 1
@@ -668,7 +695,7 @@ function StartDeliveryRoute(config)
 
                 if distance < 5.0 then
                     if config.vehicleSpawn and IsInJobVehicle() then
-                        ClientUtils.DrawText3D(deliveryPoint.coords,'⚠️ Vous devez quitter votre véhicule pour collecter !')
+                        ClientUtils.DrawText3D(deliveryPoint.coords,'⚠️ Vous devez quitter votre véhicule pour livrer !')
                     else
                         ClientUtils.DrawText3D(deliveryPoint.coords, '[E] Livrer le colis')
 
@@ -688,6 +715,11 @@ function StartDeliveryRoute(config)
 end
 
 function DeliverPackage(config)
+    if isCollecting then
+        return
+    end
+    
+    isCollecting = true
     ClientUtils.DisableControls(true, true, false)
 
     local success = ClientUtils.ProgressBar('Livraison du colis...', config.animation.delivery.duration, {
@@ -696,10 +728,13 @@ function DeliverPackage(config)
 
     ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
+    isCollecting = false
 
     if success then
         TriggerServerEvent('kt_interim:depositItems', 'delivery', config.item.name, 1, config.rewards.amount)
 
+        Wait(1000)
+        
         collectedItems = 0
 
         local alert = lib.alertDialog({
@@ -734,10 +769,6 @@ function DeliverPackage(config)
         end
     end
 end
-
--- ========================================
--- JOB: SHOP LOGISTICS
--- ========================================
 
 function StartShopLogisticsJob(config)
     collectedItems = 0
@@ -790,7 +821,6 @@ function StartShopCollect(config)
                     config.collectPoint.markerColor)
 
                 if distance < 5.0 then
-
                     if config.vehicleSpawn and IsInJobVehicle() then
                         ClientUtils.DrawText3D(config.collectPoint.coords,'⚠️ Vous devez quitter votre véhicule pour collecter !')
                     else
@@ -815,6 +845,11 @@ function StartShopCollect(config)
 end
 
 function CollectShopBox(config)
+    if isCollecting then
+        return
+    end
+    
+    isCollecting = true
     ClientUtils.DisableControls(true, true, false)
 
     local success = ClientUtils.ProgressBar('Chargement du carton...', config.animation.collect.duration, {
@@ -823,6 +858,7 @@ function CollectShopBox(config)
 
     ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
+    isCollecting = false
 
     if success then
         collectedItems = collectedItems + 1
@@ -857,7 +893,7 @@ function StartShopDeposit(config)
 
                 if distance < 5.0 then
                     if config.vehicleSpawn and IsInJobVehicle() then
-                        ClientUtils.DrawText3D(config.depositPoint.coords,'⚠️ Vous devez quitter votre véhicule pour collecter !')
+                        ClientUtils.DrawText3D(config.depositPoint.coords,'⚠️ Vous devez quitter votre véhicule pour déposer !')
                     else
                         ClientUtils.DrawText3D(config.depositPoint.coords, '[E] Déposer les cartons')
 
@@ -877,6 +913,11 @@ function StartShopDeposit(config)
 end
 
 function DepositShopBoxes(config)
+    if isCollecting then
+        return
+    end
+    
+    isCollecting = true
     ClientUtils.DisableControls(true, true, false)
 
     local success = ClientUtils.ProgressBar('Dépôt des cartons...', config.animation.deposit.duration, {
@@ -885,11 +926,14 @@ function DepositShopBoxes(config)
 
     ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
+    isCollecting = false
 
     if success then
         TriggerServerEvent('kt_interim:depositItems', 'shop_logistics', config.item.name, collectedItems,
             config.rewards.amount)
 
+        Wait(1000)
+        
         collectedItems = 0
 
         local alert = lib.alertDialog({
@@ -924,10 +968,6 @@ function DepositShopBoxes(config)
         end
     end
 end
-
--- ========================================
--- JOB: TAXI
--- ========================================
 
 function StartTaxiJob(config)
     vehicleReturnZone = config.vehicleSpawn.coords
@@ -1030,6 +1070,8 @@ function StartTaxiDelivery(config)
 
                     TriggerServerEvent('kt_interim:completeJob', 'taxi', reward)
 
+                    Wait(1000)
+
                     local alert = lib.alertDialog({
                         header = 'Continuer le travail ?',
                         content =
@@ -1072,10 +1114,6 @@ function StartTaxiDelivery(config)
 
     table.insert(activeThreads, threadId)
 end
-
--- ========================================
--- JOB: TRUCKER
--- ========================================
 
 function StartTruckerJob(config)
     vehicleReturnZone = config.vehicleSpawn.coords
@@ -1154,6 +1192,11 @@ function StartTruckerCollect(config)
 end
 
 function CollectTruckerCrate(config)
+    if isCollecting then
+        return
+    end
+    
+    isCollecting = true
     ClientUtils.DisableControls(true, true, false)
 
     local success = ClientUtils.ProgressBar('Chargement des caisses...', 3000, {
@@ -1162,6 +1205,7 @@ function CollectTruckerCrate(config)
 
     ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
+    isCollecting = false
 
     if success then
         collectedItems = collectedItems + 1
@@ -1197,7 +1241,7 @@ function StartTruckerDelivery(config)
 
                 if distance < 10.0 then
                     if config.vehicleSpawn and IsInJobVehicle() then
-                        ClientUtils.DrawText3D(deliveryPoint.coords, '⚠️ Vous devez être dans le camion de job !')
+                        ClientUtils.DrawText3D(deliveryPoint.coords, '⚠️ Vous devez quitter votre véhicule pour décharger !')
                     else
                         ClientUtils.DrawText3D(deliveryPoint.coords, '[E] Décharger les caisses')
 
@@ -1217,6 +1261,11 @@ function StartTruckerDelivery(config)
 end
 
 function DeliverTruckerCrates(config)
+    if isCollecting then
+        return
+    end
+    
+    isCollecting = true
     ClientUtils.DisableControls(true, true, false)
 
     local success = ClientUtils.ProgressBar('Déchargement des caisses...', 5000, {
@@ -1225,10 +1274,13 @@ function DeliverTruckerCrates(config)
 
     ClientUtils.DisableControls(false, false, false)
     ClientUtils.StopAnimation()
+    isCollecting = false
 
     if success then
         TriggerServerEvent('kt_interim:depositItems', 'trucker', config.item.name, collectedItems, config.rewards.amount)
 
+        Wait(1000)
+        
         collectedItems = 0
 
         local alert = lib.alertDialog({
@@ -1261,66 +1313,63 @@ function DeliverTruckerCrates(config)
     end
 end
 
-
 function CleanupJobResources()
     print('[KT_INTERIM] Starting cleanup...')
     
-    -- Arrêter les threads
     StopActiveThreads()
     
-    -- Annuler le job côté serveur
-    CancelJob()
+    if not vehicleReturning then
+        CancelJob()
+    end
 
-    -- Nettoyer les blips
     if jobBlip then
         ClientUtils.RemoveBlip(jobBlip)
         jobBlip = nil
     end
 
-    -- Nettoyer les véhicules avec délai
-    if jobVehicle and DoesEntityExist(jobVehicle) then
-        SetEntityAsMissionEntity(jobVehicle, true, true)
-        
-        CreateThread(function()
-            Wait(1000)
-            if DoesEntityExist(jobVehicle) then
-                ClientUtils.DeleteVehicle(jobVehicle)
-            end
-        end)
-        
-        jobVehicle = nil
+    if not vehicleReturning then
+        if jobVehicle and DoesEntityExist(jobVehicle) then
+            SetEntityAsMissionEntity(jobVehicle, true, true)
+            
+            CreateThread(function()
+                Wait(1000)
+                if DoesEntityExist(jobVehicle) then
+                    ClientUtils.DeleteVehicle(jobVehicle)
+                end
+            end)
+            
+            jobVehicle = nil
+        end
+
+        if jobTrailer and DoesEntityExist(jobTrailer) then
+            SetEntityAsMissionEntity(jobTrailer, true, true)
+            
+            CreateThread(function()
+                Wait(1000)
+                if DoesEntityExist(jobTrailer) then
+                    ClientUtils.DeleteVehicle(jobTrailer)
+                end
+            end)
+            
+            jobTrailer = nil
+        end
     end
 
-    if jobTrailer and DoesEntityExist(jobTrailer) then
-        SetEntityAsMissionEntity(jobTrailer, true, true)
-        
-        CreateThread(function()
-            Wait(1000)
-            if DoesEntityExist(jobTrailer) then
-                ClientUtils.DeleteVehicle(jobTrailer)
-            end
-        end)
-        
-        jobTrailer = nil
-    end
-
-    -- Nettoyer NPCs
     if jobNPC then
         ClientUtils.DeleteNPC(jobNPC)
         jobNPC = nil
     end
 
-    -- Nettoyer props
     if jobProp then
         ClientUtils.DeleteProp(jobProp)
         jobProp = nil
     end
 
-    -- Réinitialiser variables
     collectedItems = 0
     deliveryPoint = nil
     pickupPoint = nil
     vehicleReturnZone = nil
+    isCollecting = false
     
     print('[KT_INTERIM] Cleanup completed')
 end

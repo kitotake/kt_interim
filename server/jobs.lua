@@ -38,6 +38,16 @@ function ValidateConstructionJob(source, itemAmount)
         return false, 'Job non disponible'
     end
 
+    if not itemAmount then
+        ServerUtils.Log('itemAmount manquant dans ValidateConstructionJob', 'ERROR', source)
+        return false, 'Données invalides'
+    end
+
+    if not config.item or not config.item.amount then
+        ServerUtils.Log('Configuration du job construction invalide', 'ERROR', source)
+        return false, 'Configuration invalide'
+    end
+
     if itemAmount < config.item.amount then
         ServerUtils.Log('Invalid item amount for construction job', 'WARN', source)
         return false, 'Quantité d\'items invalide'

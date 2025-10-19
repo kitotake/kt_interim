@@ -1,4 +1,3 @@
--- Table pour tracker les jobs actifs des joueurs
 local activeJobs = {}
 local lastActionTime = {}
 
@@ -59,6 +58,11 @@ end
 AddEventHandler('playerDropped', function()
     local source = source
     playerActionLimiter[source] = nil
+    
+    if activeJobs[source] then
+        ServerUtils.Log('Player disconnected during job', 'INFO', source)
+        activeJobs[source] = nil
+    end
 end)
 
 -- Event: Ajouter un item pendant la collecte
@@ -107,15 +111,13 @@ RegisterNetEvent('kt_interim:depositItems', function(jobType, itemName, itemAmou
     -- Vérifier job actif
     if not activeJobs[source] or activeJobs[source] ~= jobType then
         ServerUtils.Log('Attempt to deposit items without active job or wrong job type', 'WARN', source)
-        TriggerClientEvent('kt_interim:forceStopJob', source)
         return
     end
 
     -- Anti-cheat : cooldown
-    if not ServerUtils.CheckJobCooldown(source, jobType, 10000) then
-        ServerUtils.Notify(source, 'Vous devez attendre avant de refaire cette mission', 'error')
+    if not ServerUtils.CheckJobCooldown(source, jobType, 5000) then
+        ServerUtils.Notify(source, 'Vous devez attendre avant de refaire cette action', 'error')
         ServerUtils.Log('Cooldown violation for job: ' .. jobType, 'WARN', source)
-        TriggerClientEvent('kt_interim:forceStopJob', source)
         return
     end
 
@@ -123,16 +125,14 @@ RegisterNetEvent('kt_interim:depositItems', function(jobType, itemName, itemAmou
     local config = Config.Jobs[jobType]
     if not config or not config.enabled then
         ServerUtils.Notify(source, 'Job non disponible', 'error')
-        TriggerClientEvent('kt_interim:forceStopJob', source)
         return
     end
 
-    -- Vérification du nombre d’items requis
+    -- Vérification du nombre d'items requis
     if config.item and config.item.amount then
         if itemAmount < config.item.amount then
             ServerUtils.Log(('Insufficient items: %d/%d'):format(itemAmount, config.item.amount), 'WARN', source)
-            ServerUtils.Notify(source, 'Items insuffisants', 'error')
-            TriggerClientEvent('kt_interim:forceStopJob', source)
+            ServerUtils.Notify(source, 'Vous n\'avez pas assez d\'items !', 'error')
             return
         end
         -- Limite la quantité au strict requis
@@ -143,7 +143,6 @@ RegisterNetEvent('kt_interim:depositItems', function(jobType, itemName, itemAmou
     if not ServerUtils.HasItem(source, itemName, itemAmount) then
         ServerUtils.Notify(source, 'Vous n\'avez pas les items requis !', 'error')
         ServerUtils.Log('Item check failed for job: ' .. jobType, 'WARN', source)
-        TriggerClientEvent('kt_interim:forceStopJob', source)
         return
     end
 
@@ -154,7 +153,6 @@ RegisterNetEvent('kt_interim:depositItems', function(jobType, itemName, itemAmou
     if reward > maxReward or reward < minReward then
         ServerUtils.Log(string.format('Suspicious reward: $%d (expected $%d-$%d)', reward, minReward, maxReward), 'WARN', source)
         ServerUtils.Notify(source, 'Récompense invalide', 'error')
-        TriggerClientEvent('kt_interim:forceStopJob', source)
         return
     end
 
@@ -172,7 +170,6 @@ RegisterNetEvent('kt_interim:depositItems', function(jobType, itemName, itemAmou
         local valid, errorMsg = validationFunc[jobType](source, itemAmount)
         if not valid then
             ServerUtils.Notify(source, errorMsg or 'Validation échouée', 'error')
-            TriggerClientEvent('kt_interim:forceStopJob', source)
             return
         end
     end
@@ -192,8 +189,6 @@ RegisterNetEvent('kt_interim:depositItems', function(jobType, itemName, itemAmou
 
         ServerUtils.Log(string.format('Job completed: %s | Reward: $%d | Items: %d', jobType, reward, itemAmount), 'SUCCESS', source)
 
-        activeJobs[source] = nil
-
         TriggerEvent('kt_interim:addReputation', source, jobType)
         TriggerEvent('kt_interim:updateQuest', source, jobType)
         TriggerEvent('kt_interim:applyBonus', source, jobType, reward)
@@ -203,7 +198,6 @@ RegisterNetEvent('kt_interim:depositItems', function(jobType, itemName, itemAmou
     end
 end)
 
--- Event: Compléter un job (pour les jobs sans items comme taxi)
 RegisterNetEvent('kt_interim:completeJob', function(jobType, reward)
     local source = source
     
@@ -214,8 +208,8 @@ RegisterNetEvent('kt_interim:completeJob', function(jobType, reward)
     local identifier = ServerUtils.GetIdentifier(source)
     
     -- Anti-cheat: Vérifier le cooldown
-    if not ServerUtils.CheckJobCooldown(source, jobType, 10000) then
-        ServerUtils.Notify(source, 'Vous devez attendre avant de refaire cette mission', 'error')
+    if not ServerUtils.CheckJobCooldown(source, jobType, 5000) then
+        ServerUtils.Notify(source, 'Vous devez attendre avant de refaire cette action', 'error')
         ServerUtils.Log('Cooldown violation for job: ' .. jobType, 'WARN', source)
         return
     end
@@ -230,18 +224,16 @@ RegisterNetEvent('kt_interim:completeJob', function(jobType, reward)
     local config = Config.Jobs[jobType]
     if not config or not config.enabled then
         ServerUtils.Notify(source, 'Job non disponible', 'error')
-        TriggerClientEvent('kt_interim:forceStopJob', source)
         return
     end
     
-    -- Vérifier le montant de la récompense (tolérance de 100% pour taxi à cause de la distance)
+    -- Vérifier le montant de la récompense (tolérance de 150% pour taxi à cause de la distance)
     local maxReward = config.salary * 2.5
     local minReward = config.salary * 0.5
     
     if reward > maxReward or reward < minReward then
         ServerUtils.Log(string.format('Suspicious reward: $%d (expected $%d-$%d)', reward, minReward, maxReward), 'WARN', source)
         ServerUtils.Notify(source, 'Récompense invalide', 'error')
-        TriggerClientEvent('kt_interim:forceStopJob', source)
         return
     end
     
@@ -259,8 +251,8 @@ RegisterNetEvent('kt_interim:completeJob', function(jobType, reward)
         -- Log
         ServerUtils.Log(string.format('Job completed: %s | Reward: $%d', jobType, reward), 'SUCCESS', source)
         
-        -- Retirer le job actif
-        activeJobs[source] = nil
+        -- ✅ CORRECTION: NE PAS retirer le job actif ici non plus
+        -- activeJobs[source] = nil
         
         -- Triggers additionnels
         TriggerEvent('kt_interim:addReputation', source, jobType)
@@ -291,6 +283,17 @@ RegisterNetEvent('kt_interim:startJob', function(jobType)
     activeJobs[source] = jobType
     
     ServerUtils.Log('Job started: ' .. jobType, 'INFO', source)
+end)
+
+-- ✅ CORRECTION: Event pour annulation manuelle du job
+RegisterNetEvent('kt_interim:cancelJob', function()
+    local source = source
+    
+    if activeJobs[source] then
+        local jobType = activeJobs[source]
+        ServerUtils.Log('Player cancelled job: ' .. jobType, 'INFO', source)
+        activeJobs[source] = nil
+    end
 end)
 
 RegisterNetEvent('kt_interim:playerCancelJob', function(jobType)
@@ -327,7 +330,6 @@ function SaveJobCompletion(identifier, jobType, data)
     })
 end
 
--- Commande pour obtenir les stats d'un joueur (admin)
 RegisterCommand('interimstats', function(source, args)
     if source == 0 then -- Console
         if args[1] then
@@ -352,7 +354,6 @@ RegisterCommand('interimstats', function(source, args)
         local identifier = ServerUtils.GetIdentifier(source)
         GetPlayerJobStats(identifier, function(stats)
             if stats and #stats > 0 then
-          --    ServerUtils.Notify(source, 'Consultez la console (F8) pour vos statistiques', 'info')
                 TriggerClientEvent('chat:addMessage', source, {
                     color = {0, 255, 0},
                     multiline = true,
@@ -414,6 +415,45 @@ RegisterCommand('interim_reset', function(source, args)
     end
 end, false)
 
+-- Commande pour forcer l'arrêt d'un job (admin)
+RegisterCommand('interim_stop', function(source, args)
+    if source == 0 then -- Console only
+        if args[1] then
+            local targetSource = tonumber(args[1])
+            if ServerUtils.PlayerExists(targetSource) then
+                if activeJobs[targetSource] then
+                    local jobType = activeJobs[targetSource]
+                    activeJobs[targetSource] = nil
+                    TriggerClientEvent('kt_interim:forceStopJob', targetSource)
+                    print('^2[KT_INTERIM]^7 Force stopped job for player: ' .. GetPlayerName(targetSource) .. ' (Job: ' .. jobType .. ')')
+                else
+                    print('^1[KT_INTERIM]^7 Player has no active job')
+                end
+            else
+                print('^1[KT_INTERIM]^7 Player not found')
+            end
+        end
+    end
+end, false)
+
+-- Commande pour voir tous les jobs actifs
+RegisterCommand('interim_list', function(source, args)
+    if source == 0 then -- Console only
+        local count = 0
+        print('^2[KT_INTERIM]^7 Active jobs:')
+        for playerId, jobType in pairs(activeJobs) do
+            if ServerUtils.PlayerExists(playerId) then
+                count = count + 1
+                print(string.format('  [%d] %s - Job: %s', playerId, GetPlayerName(playerId), jobType))
+            end
+        end
+        if count == 0 then
+            print('^3[KT_INTERIM]^7 No active jobs')
+        else
+            print('^2[KT_INTERIM]^7 Total: ' .. count .. ' active job(s)')
+        end
+    end
+end, false)
 
 exports('IsPlayerOnJob', function(source)
     return activeJobs[source] ~= nil
@@ -422,3 +462,130 @@ end)
 exports('GetPlayerActiveJob', function(source)
     return activeJobs[source]
 end)
+
+exports('ForceStopJob', function(source)
+    if activeJobs[source] then
+        local jobType = activeJobs[source]
+        activeJobs[source] = nil
+        TriggerClientEvent('kt_interim:forceStopJob', source)
+        ServerUtils.Log('Job force stopped: ' .. jobType, 'INFO', source)
+        return true
+    end
+    return false
+end)
+
+exports('GetActiveJobsCount', function()
+    local count = 0
+    for _ in pairs(activeJobs) do
+        count = count + 1
+    end
+    return count
+end)
+
+AddEventHandler('playerDropped', function(reason)
+    local source = source
+    
+    if activeJobs[source] then
+        ServerUtils.Log('Player disconnected during job: ' .. activeJobs[source], 'INFO', source)
+        activeJobs[source] = nil
+    end
+    
+    if playerActionLimiter[source] then
+        playerActionLimiter[source] = nil
+    end
+end)
+
+AddEventHandler('onResourceStop', function(resourceName)
+    if GetCurrentResourceName() == resourceName then
+        print('^3[KT_INTERIM]^7 Resource stopping - Cleaning up active jobs')
+        
+        for playerId, jobType in pairs(activeJobs) do
+            if ServerUtils.PlayerExists(playerId) then
+                TriggerClientEvent('kt_interim:forceStopJob', playerId)
+                ServerUtils.Notify(playerId, 'Le système d\'intérim redémarre. Votre job a été annulé.', 'error')
+            end
+        end
+        
+        -- Nettoyer les tables
+        activeJobs = {}
+        playerActionLimiter = {}
+        
+        print('^2[KT_INTERIM]^7 Cleanup completed')
+    end
+end)
+
+-- Event handler pour le démarrage de la ressource
+AddEventHandler('onResourceStart', function(resourceName)
+    if GetCurrentResourceName() == resourceName then
+        print('^2[KT_INTERIM]^7 Resource started')
+        
+        -- Réinitialiser les tables au cas où
+        activeJobs = {}
+        playerActionLimiter = {}
+    end
+end)
+
+-- Thread de monitoring (optionnel - pour debug)
+if Config.Debug then
+    CreateThread(function()
+        while true do
+            Wait(60000) -- Toutes les minutes
+            
+            local activeCount = 0
+            for playerId, jobType in pairs(activeJobs) do
+                if ServerUtils.PlayerExists(playerId) then
+                    activeCount = activeCount + 1
+                else
+                    -- Nettoyer les jobs orphelins
+                    activeJobs[playerId] = nil
+                    ServerUtils.Log('Cleaned up orphaned job for disconnected player', 'WARN')
+                end
+            end
+            
+            if activeCount > 0 then
+                print(string.format('^2[KT_INTERIM]^7 Monitor: %d active job(s)', activeCount))
+            end
+        end
+    end)
+end
+
+-- Fonction utilitaire pour nettoyer manuellement les jobs orphelins
+function CleanupOrphanedJobs()
+    local cleaned = 0
+    for playerId, jobType in pairs(activeJobs) do
+        if not ServerUtils.PlayerExists(playerId) then
+            activeJobs[playerId] = nil
+            cleaned = cleaned + 1
+        end
+    end
+    return cleaned
+end
+
+-- Commande admin pour nettoyer les jobs orphelins
+RegisterCommand('interim_cleanup', function(source)
+    if source == 0 then -- Console only
+        local cleaned = CleanupOrphanedJobs()
+        print(string.format('^2[KT_INTERIM]^7 Cleaned up %d orphaned job(s)', cleaned))
+    end
+end, false)
+
+-- Debug: Afficher les informations d'un joueur
+RegisterCommand('interim_debug', function(source, args)
+    if source == 0 and args[1] then -- Console only
+        local targetSource = tonumber(args[1])
+        if ServerUtils.PlayerExists(targetSource) then
+            local identifier = ServerUtils.GetIdentifier(targetSource)
+            local jobType = activeJobs[targetSource]
+            
+            print('^2[KT_INTERIM DEBUG]^7 Player: ' .. GetPlayerName(targetSource))
+            print('  Source: ' .. targetSource)
+            print('  Identifier: ' .. (identifier or 'N/A'))
+            print('  Active Job: ' .. (jobType or 'None'))
+            print('  Action Limiter: ' .. (playerActionLimiter[targetSource] and 'Yes' or 'No'))
+        else
+            print('^1[KT_INTERIM]^7 Player not found')
+        end
+    end
+end, false)
+
+print('^2[KT_INTERIM]^7 Server main script loaded successfully')
