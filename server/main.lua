@@ -350,7 +350,7 @@ RegisterCommand('interimstats', function(source, args)
         local identifier = ServerUtils.GetIdentifier(source)
         GetPlayerJobStats(identifier, function(stats)
             if stats and #stats > 0 then
-                ServerUtils.Notify(source, 'Consultez la console (F8) pour vos statistiques', 'info')
+          --    ServerUtils.Notify(source, 'Consultez la console (F8) pour vos statistiques', 'info')
                 TriggerClientEvent('chat:addMessage', source, {
                     color = {0, 255, 0},
                     multiline = true,

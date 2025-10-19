@@ -209,6 +209,105 @@ function ClientUtils.SpawnVehicle(model, coords, heading, callback)
     end
 end
 
+
+local function StartVehicleReturn(spawnCoords, jobName)
+    ClientUtils.RemoveBlip(jobBlip)
+
+    -- ✅ Conversion sécurisée
+    if type(spawnCoords) ~= "vector3" then
+        spawnCoords = vector3(spawnCoords.x, spawnCoords.y, spawnCoords.z)
+    end
+
+    jobBlip = ClientUtils.CreateBlip(
+        spawnCoords,
+        1,
+        50,
+        0.8,
+        'Retour véhicule - ' .. jobName
+    )
+
+    ClientUtils.SetWaypoint(spawnCoords, 'Zone de retour véhicule')
+    ClientUtils.Notify('Ramenez le véhicule à la zone de départ', 'warning')
+
+    StopActiveThreads()
+
+    local threadId = CreateThread(function()
+        while IsJobActive() and jobVehicle and DoesEntityExist(jobVehicle) do
+            local playerCoords = ClientUtils.GetPlayerCoords()
+            local distance = #(playerCoords - spawnCoords)
+
+            if distance < 30.0 then
+                ClientUtils.DrawMarker(spawnCoords, 1, { r = 0, g = 255, b = 255, a = 100 }, { x = 5.0, y = 5.0, z = 1.0 })
+
+                if distance < 5.0 and IsInJobVehicle() then
+                    ClientUtils.DrawText3D(spawnCoords, '[E] Rendre le véhicule')
+
+                    if IsControlJustPressed(0, 38) then
+                        ReturnVehicle()
+                        return
+                    end
+                end
+            end
+
+            Wait(0)
+        end
+    end)
+
+    table.insert(activeThreads, threadId)
+end
+
+
+function ReturnVehicle()
+    if not jobVehicle or not DoesEntityExist(jobVehicle) then
+        return
+    end
+
+    ClientUtils.Notify('Véhicule rendu ! Il sera récupéré dans 1 minute...', 'success')
+
+    local playerPed = PlayerPedId()
+    TaskLeaveVehicle(playerPed, jobVehicle, 0)
+    Wait(2000)
+
+    SetEntityAlpha(jobVehicle, 255, false)
+    if jobTrailer and DoesEntityExist(jobTrailer) then
+        SetEntityAlpha(jobTrailer, 255, false)
+    end
+
+    CreateThread(function()
+        local startTime = GetGameTimer()
+        local duration = 60000
+
+        while GetGameTimer() - startTime < duration do
+            local elapsed = GetGameTimer() - startTime
+            local alpha = math.floor(255 - (255 * (elapsed / duration)))
+
+            if jobVehicle and DoesEntityExist(jobVehicle) then
+                SetEntityAlpha(jobVehicle, alpha, false)
+            end
+
+            if jobTrailer and DoesEntityExist(jobTrailer) then
+                SetEntityAlpha(jobTrailer, alpha, false)
+            end
+
+            Wait(1000)
+        end
+
+        if jobVehicle and DoesEntityExist(jobVehicle) then
+            ClientUtils.DeleteVehicle(jobVehicle)
+            jobVehicle = nil
+        end
+
+        if jobTrailer and DoesEntityExist(jobTrailer) then
+            ClientUtils.DeleteVehicle(jobTrailer)
+            jobTrailer = nil
+        end
+
+        ClientUtils.Notify('Le véhicule a été récupéré', 'info')
+        CleanupJobResources()
+    end)
+end
+
+
 function ClientUtils.DeleteVehicle(vehicle)
     if DoesEntityExist(vehicle) then
         SetEntityAsMissionEntity(vehicle, true, true)
