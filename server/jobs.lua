@@ -1,5 +1,28 @@
 print('^2[KT_INTERIM]^7 Jobs server script loaded')
 
+local function ValidateItemAmount(source, jobType, itemAmount)
+    local config = Config.Jobs[jobType]
+
+    if not config or not config.enabled then
+        return false, 'Job non disponible'
+    end
+
+    if config.item and config.item.amount then
+        if not itemAmount then
+            ServerUtils.Log(('itemAmount manquant pour %s'):format(jobType), 'ERROR', source)
+            return false, 'Données invalides'
+        end
+
+        if itemAmount < config.item.amount then
+            ServerUtils.Log(('Quantité invalide pour %s: %d/%d'):format(
+                jobType, itemAmount, config.item.amount), 'WARN', source)
+            return false, 'Quantité d\'items invalide'
+        end
+    end
+
+    return true
+end
+
 function ValidateJobCompletion(source, jobType, itemAmount, reward)
     local config = Config.Jobs[jobType]
     
@@ -12,19 +35,19 @@ function ValidateJobCompletion(source, jobType, itemAmount, reward)
     local minReward = config.salary * 0.5
     
     if reward > maxReward or reward < minReward then
-        ServerUtils.Log(string.format('Suspicious reward: $%d (expected $%d-$%d)', reward, minReward, maxReward), 'WARN', source)
+        ServerUtils.Log(string.format('Suspicious reward: $%d (expected $%d-$%d)', 
+            reward, minReward, maxReward), 'WARN', source)
         return false, 'Récompense invalide'
     end
     
-    
-    if config.item and config.item.amount and itemAmount > 0 then
-        if itemAmount < config.item.amount then  
-            ServerUtils.Log(string.format('Invalid item amount: %d (expected %d)', itemAmount, config.item.amount), 'WARN', source)
-            return false, 'Quantité d\'items invalide'
+    if itemAmount and itemAmount > 0 then
+        local valid, err = ValidateItemAmount(source, jobType, itemAmount)
+        if not valid then
+            return false, err
         end
     end
     
-    if CheckPenalty and CheckPenalty(source) then
+    if CheckPenalty(source) then
         return false, 'Vous avez trop de pénalités. Attendez avant de refaire un job.'
     end
     
@@ -32,82 +55,23 @@ function ValidateJobCompletion(source, jobType, itemAmount, reward)
 end
 
 function ValidateConstructionJob(source, itemAmount)
-    local config = Config.Jobs['construction']
-    
-    if not config or not config.enabled then
-        return false, 'Job non disponible'
-    end
-
-    if not itemAmount then
-        ServerUtils.Log('itemAmount manquant dans ValidateConstructionJob', 'ERROR', source)
-        return false, 'Données invalides'
-    end
-
-    if not config.item or not config.item.amount then
-        ServerUtils.Log('Configuration du job construction invalide', 'ERROR', source)
-        return false, 'Configuration invalide'
-    end
-
-    if itemAmount < config.item.amount then
-        ServerUtils.Log('Invalid item amount for construction job', 'WARN', source)
-        return false, 'Quantité d\'items invalide'
-    end
-    
-    return true
+    return ValidateItemAmount(source, 'construction', itemAmount)
 end
 
 function ValidateCleaningJob(source, itemAmount)
-    local config = Config.Jobs['cleaning']
-    
-    if not config or not config.enabled then
-        return false, 'Job non disponible'
-    end
-    
-    if itemAmount < config.item.amount then
-        ServerUtils.Log('Invalid item amount for cleaning job', 'WARN', source)
-        return false, 'Quantité d\'items invalide'
-    end
-    
-    return true
+    return ValidateItemAmount(source, 'cleaning', itemAmount)
 end
 
-function ValidateDeliveryJob(source)
-    local config = Config.Jobs['delivery']
-    
-    if not config or not config.enabled then
-        return false, 'Job non disponible'
-    end
-    
-    local playerPed = GetPlayerPed(source)
-    if not DoesEntityExist(playerPed) then
-        return false, 'Joueur invalide'
-    end
-    
-    return true
+function ValidateDeliveryJob(source, itemAmount)
+    return ValidateItemAmount(source, 'delivery', itemAmount)
 end
 
 function ValidateShopLogisticsJob(source, itemAmount)
-    local config = Config.Jobs['shop_logistics']
-    
-    if not config or not config.enabled then
-        return false, 'Job non disponible'
-    end
-    
-    if itemAmount < config.item.amount then
-        ServerUtils.Log('Invalid item amount for shop logistics job', 'WARN', source)
-        return false, 'Quantité d\'items invalide'
-    end
-    
-    return true
+    return ValidateItemAmount(source, 'shop_logistics', itemAmount)
 end
 
-function CalculateTaxiReward(distance, baseReward, perMeterRate)
-    local reward = baseReward + math.floor(distance * perMeterRate)
-    
-    reward = math.max(reward, baseReward)
-    reward = math.min(reward, baseReward * 3) 
-    
-    return reward
+function ValidateTruckerJob(source, itemAmount)
+    return ValidateItemAmount(source, 'trucker', itemAmount)
 end
 
 function ValidateTaxiJob(source, distance)
@@ -117,29 +81,34 @@ function ValidateTaxiJob(source, distance)
         return false, 'Job non disponible', 0
     end
     
-    if distance < 50 or distance > 10000 then
-        ServerUtils.Log('Suspicious taxi distance: ' .. distance, 'WARN', source)
+    if not distance or distance < 50 or distance > 10000 then
+        ServerUtils.Log('Suspicious taxi distance: ' .. tostring(distance), 'WARN', source)
         return false, 'Distance invalide', 0
     end
     
     local reward = CalculateTaxiReward(distance, config.rewards.baseAmount, config.rewards.perMeterRate)
-    
     return true, nil, reward
 end
 
-function ValidateTruckerJob(source, itemAmount)
-    local config = Config.Jobs['trucker']
+function CalculateTaxiReward(distance, baseReward, perMeterRate)
+    local reward = baseReward + math.floor(distance * perMeterRate)
+    reward = math.max(reward, baseReward)
+    reward = math.min(reward, baseReward * 3)
+    return reward
+end
+
+function CalculateBonusReward(baseReward, jobCount)
+    local bonusMultiplier = 1.0
     
-    if not config or not config.enabled then
-        return false, 'Job non disponible'
+    if jobCount >= 5 and jobCount < 10 then
+        bonusMultiplier = 1.1
+    elseif jobCount >= 10 and jobCount < 20 then
+        bonusMultiplier = 1.2
+    elseif jobCount >= 20 then
+        bonusMultiplier = 1.3
     end
     
-    if itemAmount < config.item.amount then
-        ServerUtils.Log('Invalid item amount for trucker job', 'WARN', source)
-        return false, 'Quantité d\'items invalide'
-    end
-    
-    return true
+    return math.floor(baseReward * bonusMultiplier)
 end
 
 local playerBonusTracker = {}
@@ -173,22 +142,9 @@ function CheckPlayerBonus(identifier, jobType)
     return false, tracker.count
 end
 
-function CalculateBonusReward(baseReward, jobCount)
-    local bonusMultiplier = 1.0
-    
-    if jobCount >= 5 and jobCount < 10 then
-        bonusMultiplier = 1.1
-    elseif jobCount >= 10 and jobCount < 20 then
-        bonusMultiplier = 1.2
-    elseif jobCount >= 20 then
-        bonusMultiplier = 1.3
-    end
-    
-    return math.floor(baseReward * bonusMultiplier)
-end
-
 RegisterNetEvent('kt_interim:applyBonus', function(source, jobType, baseReward)
     local identifier = ServerUtils.GetIdentifier(source)
+    if not identifier then return end
     
     local hasBonus, jobCount = CheckPlayerBonus(identifier, jobType)
     
@@ -230,11 +186,12 @@ end
 
 RegisterNetEvent('kt_interim:addReputation', function(source, jobType)
     local identifier = ServerUtils.GetIdentifier(source)
+    if not identifier then return end
     
     local xpGain = 10
     local config = Config.Jobs[jobType]
     if config then
-        xpGain = math.floor(config.salary / 15) 
+        xpGain = math.floor(config.salary / 15)
     end
     
     local leveledUp, currentLevel = AddReputationXP(identifier, xpGain)
@@ -252,6 +209,8 @@ end)
 RegisterCommand('interimrep', function(source)
     if source > 0 then
         local identifier = ServerUtils.GetIdentifier(source)
+        if not identifier then return end
+        
         local rep = GetPlayerReputation(identifier)
         
         TriggerClientEvent('chat:addMessage', source, {
@@ -280,8 +239,10 @@ function AddPenalty(source, reason)
     
     if playerPenalties[source].count >= 5 then
         local identifier = ServerUtils.GetIdentifier(source)
-        ServerUtils.BanPlayer(identifier, 'Trop de pénalités (triche suspectée)', 3600)
-        DropPlayer(source, 'Vous avez été temporairement banni du système d\'intérim pour comportement suspect')
+        if identifier then
+            ServerUtils.BanPlayer(identifier, 'Trop de pénalités (triche suspectée)', 3600)
+            DropPlayer(source, 'Vous avez été temporairement banni du système d\'intérim pour comportement suspect')
+        end
     end
 end
 
@@ -307,6 +268,13 @@ RegisterNetEvent('kt_interim:reportSuspicious', function(reason)
     ServerUtils.Notify(source, 'Activité suspecte détectée. Attention aux pénalités !', 'error')
 end)
 
+AddEventHandler('playerDropped', function()
+    local source = source
+    if playerPenalties[source] then
+        playerPenalties[source] = nil
+    end
+end)
+
 local dailyQuests = {}
 
 function GenerateDailyQuests()
@@ -319,15 +287,20 @@ function GenerateDailyQuests()
         end
     end
     
-    for i = 1, 5 do
+    if #jobTypes == 0 then
+        print('^3[KT_INTERIM]^7 Warning: No enabled jobs found for daily quests')
+        return quests
+    end
+    
+    for i = 1, math.min(5, #jobTypes) do
         local jobType = ServerUtils.RandomChoice(jobTypes)
         local requiredAmount = math.random(3, 5)
         
         table.insert(quests, {
             jobType = jobType,
             requiredAmount = requiredAmount,
-            reward = Config.Jobs[jobType].salary * requiredAmount * 1.2,
-            completed = 0
+            reward = math.floor(Config.Jobs[jobType].salary * requiredAmount * 1.2),
+            completedBy = {}
         })
     end
     
@@ -336,7 +309,7 @@ end
 
 function InitializeDailyQuests()
     dailyQuests = GenerateDailyQuests()
-    print('^2[KT_INTERIM]^7 Daily quests initialized')
+    print('^2[KT_INTERIM]^7 Daily quests initialized (' .. #dailyQuests .. ' quests)')
 end
 
 function UpdateDailyQuest(identifier, jobType)
@@ -368,7 +341,7 @@ CreateThread(function()
     InitializeDailyQuests()
     
     while true do
-        Wait(86400000)
+        Wait(86400000) -- 24h
         InitializeDailyQuests()
         print('^2[KT_INTERIM]^7 Daily quests reset')
     end
@@ -376,6 +349,7 @@ end)
 
 RegisterNetEvent('kt_interim:updateQuest', function(source, jobType)
     local identifier = ServerUtils.GetIdentifier(source)
+    if not identifier then return end
     
     local completed, rewardOrProgress, required = UpdateDailyQuest(identifier, jobType)
     
@@ -391,6 +365,7 @@ end)
 RegisterCommand('interimquests', function(source)
     if source > 0 then
         local identifier = ServerUtils.GetIdentifier(source)
+        if not identifier then return end
         
         TriggerClientEvent('chat:addMessage', source, {
             color = {255, 165, 0},
@@ -404,7 +379,9 @@ RegisterCommand('interimquests', function(source)
                 progress = quest.completedBy[identifier]
             end
             
-            local status = progress >= quest.requiredAmount and '✅ Complétée' or string.format('⏳ %d/%d', progress, quest.requiredAmount)
+            local status = progress >= quest.requiredAmount 
+                and '✅ Complétée' 
+                or string.format('⏳ %d/%d', progress, quest.requiredAmount)
             
             TriggerClientEvent('chat:addMessage', source, {
                 args = {'', string.format('%d. %s: %s | Récompense: $%d', 
@@ -442,13 +419,13 @@ function GetDynamicReward(jobType, baseReward)
     local multiplier = 1.0
     
     if completions < 5 then
-        multiplier = 1.3
+        multiplier = 1.3      -- +30% si peu de completions
     elseif completions < 10 then
-        multiplier = 1.15
+        multiplier = 1.15     -- +15%
     elseif completions < 20 then
-        multiplier = 1.0
+        multiplier = 1.0      -- Normal
     else
-        multiplier = 0.85
+        multiplier = 0.85     -- -15% si trop de completions
     end
     
     return math.floor(baseReward * multiplier)
@@ -456,17 +433,21 @@ end
 
 RegisterNetEvent('kt_interim:getDynamicReward', function(jobType, baseReward)
     local source = source
+    
     UpdateJobDemand(jobType)
     local dynamicReward = GetDynamicReward(jobType, baseReward)
     
     if dynamicReward > baseReward then
-        ServerUtils.Notify(source, '📈 Demande élevée ! Récompense augmentée: +' .. math.floor(((dynamicReward - baseReward) / baseReward) * 100) .. '%', 'success')
+        local percent = math.floor(((dynamicReward - baseReward) / baseReward) * 100)
+        ServerUtils.Notify(source, '📈 Demande élevée ! Récompense augmentée: +' .. percent .. '%', 'success')
     elseif dynamicReward < baseReward then
-        ServerUtils.Notify(source, '📉 Forte affluence. Récompense réduite: ' .. math.floor(((baseReward - dynamicReward) / baseReward) * 100) .. '%', 'warning')
+        local percent = math.floor(((baseReward - dynamicReward) / baseReward) * 100)
+        ServerUtils.Notify(source, '📉 Forte affluence. Récompense réduite: -' .. percent .. '%', 'warning')
     end
     
     TriggerClientEvent('kt_interim:receiveDynamicReward', source, dynamicReward)
 end)
+
 
 exports('ValidateJobCompletion', ValidateJobCompletion)
 exports('ValidateConstructionJob', ValidateConstructionJob)
@@ -477,3 +458,7 @@ exports('ValidateTaxiJob', ValidateTaxiJob)
 exports('ValidateTruckerJob', ValidateTruckerJob)
 exports('GetPlayerReputation', GetPlayerReputation)
 exports('GetDynamicReward', GetDynamicReward)
+exports('CheckPenalty', CheckPenalty)
+exports('AddPenalty', AddPenalty)
+
+print('^2[KT_INTERIM]^7 Jobs validation system initialized')
