@@ -3,25 +3,28 @@ print('^2[KT_INTERIM]^7 Jobs server script loaded')
 local function ValidateItemAmount(source, jobType, itemAmount)
     local config = Config.Jobs[jobType]
 
+    -- Vérifie si le job est activé
     if not config or not config.enabled then
         return false, 'Job non disponible'
     end
 
+    -- Vérifie si l’item existe pour le job
     if config.item and config.item.amount then
-        if not itemAmount then
-            ServerUtils.Log(('itemAmount manquant pour %s'):format(jobType), 'ERROR', source)
-            return false, 'Données invalides'
+        if not itemAmount or itemAmount <= 0 then
+            ServerUtils.Log(('Quantité invalide pour %s: %s'):format(jobType, tostring(itemAmount)), 'ERROR', source)
+            return false, 'Quantité invalide'
         end
 
-        if itemAmount < config.item.amount then
-            ServerUtils.Log(('Quantité invalide pour %s: %d/%d'):format(
-                jobType, itemAmount, config.item.amount), 'WARN', source)
-            return false, 'Quantité d\'items invalide'
+        -- Vérifie le maxDeposit si défini
+        if config.item.maxDeposit and itemAmount > config.item.maxDeposit then
+            ServerUtils.Log(('Tentative de dépôt trop élevé pour %s: %s items'):format(jobType, itemAmount), 'WARN', source)
+            return false, ('Vous ne pouvez déposer que %d %s à la fois'):format(config.item.maxDeposit, config.item.label)
         end
     end
 
     return true
 end
+
 
 function ValidateJobCompletion(source, jobType, itemAmount, reward)
     local config = Config.Jobs[jobType]
@@ -30,13 +33,18 @@ function ValidateJobCompletion(source, jobType, itemAmount, reward)
         ServerUtils.Log('Job not enabled: ' .. jobType, 'ERROR', source)
         return false, 'Job non disponible'
     end
-    
-    local maxReward = config.salary * 1.5
-    local minReward = config.salary * 0.5
+            if not reward or reward <= 0 then
+            ServerUtils.Log('Invalid reward for ' .. jobType .. ': ' .. tostring(reward), 'ERROR', source)
+            return false, 'Récompense invalide'
+        end
+    local baseRewardPerItem = config.salary / (config.item and config.item.amount or 1)
+    local expectedReward = math.floor(baseRewardPerItem * (itemAmount or 1))
+    local maxReward = expectedReward * 1.5
+    local minReward = expectedReward * 0.5
     
     if reward > maxReward or reward < minReward then
-        ServerUtils.Log(string.format('Suspicious reward: $%d (expected $%d-$%d)', 
-            reward, minReward, maxReward), 'WARN', source)
+        ServerUtils.Log(string.format('Suspicious reward: $%d (expected $%d-$%d for %d items)', 
+            reward, minReward, maxReward, itemAmount), 'WARN', source)
         return false, 'Récompense invalide'
     end
     
@@ -341,7 +349,7 @@ CreateThread(function()
     InitializeDailyQuests()
     
     while true do
-        Wait(86400000) -- 24h
+        Wait(86400000)
         InitializeDailyQuests()
         print('^2[KT_INTERIM]^7 Daily quests reset')
     end
@@ -419,13 +427,13 @@ function GetDynamicReward(jobType, baseReward)
     local multiplier = 1.0
     
     if completions < 5 then
-        multiplier = 1.3      -- +30% si peu de completions
+        multiplier = 1.3
     elseif completions < 10 then
-        multiplier = 1.15     -- +15%
+        multiplier = 1.15
     elseif completions < 20 then
-        multiplier = 1.0      -- Normal
+        multiplier = 1.0
     else
-        multiplier = 0.85     -- -15% si trop de completions
+        multiplier = 0.85
     end
     
     return math.floor(baseReward * multiplier)
@@ -447,7 +455,6 @@ RegisterNetEvent('kt_interim:getDynamicReward', function(jobType, baseReward)
     
     TriggerClientEvent('kt_interim:receiveDynamicReward', source, dynamicReward)
 end)
-
 
 exports('ValidateJobCompletion', ValidateJobCompletion)
 exports('ValidateConstructionJob', ValidateConstructionJob)

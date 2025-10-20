@@ -49,7 +49,8 @@ Config.Jobs = {
         item = {
             name = 'construction_brick',
             label = 'Brique de construction',
-            amount = 5,
+            amount = 2,
+            maxDeposit = 2,
             required = true
         },
         rewards = {
@@ -106,6 +107,7 @@ Config.Jobs = {
             name = 'trash_bag',
             label = 'Sac poubelle',
             amount = 5,
+            maxDeposit = 2,
             required = true
         },
         rewards = {
@@ -159,6 +161,7 @@ Config.Jobs = {
             name = 'delivery_package',
             label = 'Colis',
             amount = 1,
+            maxDeposit = 2,
             required = true
         },
         rewards = {
@@ -211,6 +214,7 @@ Config.Jobs = {
             name = 'shop_box',
             label = 'Carton de marchandise',
             amount = 8,
+            maxDeposit = 2,
             required = true
         },
         rewards = {
@@ -313,6 +317,7 @@ Config.Jobs = {
             name = 'truck_crate',
             label = 'Caisse de marchandise',
             amount = 15,
+            maxDeposit = 2,
             required = true
         },
         rewards = {
